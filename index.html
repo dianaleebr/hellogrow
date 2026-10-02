@@ -777,7 +777,15 @@ input:focus,select:focus,textarea:focus,.fm-inp:focus{background:#fff!important;
 }
 </style>
 </head>
-<body>
+<body class="pre-login">
+<script>
+/* 첫 페인트 전에 화면 상태 결정: 로그인 전 → 로그인 화면, 로그인 상태 복원 → 시작(아이콘) 화면 (LMS 화면 깜빡임 방지) */
+(function(){
+  var role=null; try{ role=sessionStorage.getItem('wg-login-role'); }catch(e){}
+  if(role){ document.body.classList.remove('pre-login'); document.body.classList.add('on-start','wg-booting'); }
+})();
+</script>
+<style>body.wg-booting #sec-home{display:none!important}</style>
 
 <!-- LOGIN -->
 <div id="login-screen" class="login-wrap" style="display:none">
@@ -1858,6 +1866,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   window._appInited=true;
   init();
   restoreLogin();
+  document.body.classList.remove('wg-booting');
 });
 function applyRoleVisibility(){
   document.querySelectorAll('.admin-tab').forEach(el=>{
