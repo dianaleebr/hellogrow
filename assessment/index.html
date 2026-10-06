@@ -1574,8 +1574,7 @@ function openReport(id){
     ${ai ? `
      ${ai.overall?`<p style="margin-bottom:14px;line-height:1.8">${esc(clean(ai.overall))}</p>`:''}
      ${['vocab','grammar','reading','writing'].map(k => `<h3>${DOMAINS[k].label}</h3><div class="presc">${presc(ai.domains&&ai.domains[k])}</div>`).join('')}
-     ${d.editedAt && ai.createdAt && d.editedAt>ai.createdAt ? `<div class="chip amber" style="margin-bottom:10px">답안이 수정된 이후 생성되지 않은 처방입니다. 상단의 "학습처방 다시 생성"을 눌러 주세요.</div>`:''}
-     <p class="ai-note">채점 결과를 바탕으로 자동 생성된 처방입니다. 담당 교사가 검토했습니다.</p>`
+     ${d.editedAt && ai.createdAt && d.editedAt>ai.createdAt ? `<div class="chip amber" style="margin-bottom:10px">답안이 수정된 이후 생성되지 않은 처방입니다. 상단의 "학습처방 다시 생성"을 눌러 주세요.</div>`:''}`
     : `<p class="muted">학습처방을 생성하는 중입니다…</p>`}
    </div>
 
