@@ -433,6 +433,7 @@ body.print-mode #print-area{display:block;max-width:820px;margin:0 auto;padding:
    <input id="f-name" placeholder="이름 검색" oninput="renderResults()">
    <select id="f-grade" onchange="renderResults()"><option value="">전체 학년</option><option>초1</option><option>초2</option><option>초3</option><option>초4</option><option>초5</option><option>초6</option><option>중1</option></select>
    <select id="f-level" onchange="renderResults()"><option value="">전체 레벨</option><option value="1">Test 1</option><option value="2">Test 2</option><option value="3">Test 3</option></select>
+   <div class="seg" id="sort-seg"><button id="sort-date" class="on" onclick="setSort('date')">최신순</button><button id="sort-desc" onclick="setSort('desc')">점수 높은순</button><button id="sort-asc" onclick="setSort('asc')">점수 낮은순</button></div>
    <span class="spacer" style="flex:1"></span>
    <span class="muted" id="sync-status">동기화 중…</span>
   </div>
@@ -1310,13 +1311,16 @@ function renderStudentView(){
   </div>`;
  }).join('');
 }
+let sortMode = 'date';
+function setSort(m){ sortMode = m; ['date','desc','asc'].forEach(k=>$('sort-'+k).classList.toggle('on', k===m)); renderResults(); }
 function renderResults(){
  if($('scr-teacher').classList.contains('hidden')) return;
  $('student-view').classList.toggle('hidden', viewMode!=='student');
  $('results-table').parentElement.parentElement.classList.toggle('hidden', viewMode==='student');
  if(viewMode==='student') renderStudentView();
  const q = ($('f-name').value||'').trim(), g = $('f-grade').value, lv = $('f-level').value;
- const rows = allDocs.filter(d => (!q || d.student.name.includes(q)) && (!g || d.student.grade===g) && (!lv || String(d.level)===lv));
+ let rows = allDocs.filter(d => (!q || d.student.name.includes(q)) && (!g || d.student.grade===g) && (!lv || String(d.level)===lv));
+ if(sortMode!=='date'){ const tot = d => { try{ return analyze(d, [], true).total; }catch(e){ return -1; } }; rows = rows.map(d=>({d, t:tot(d)})).sort((a,b)=> sortMode==='desc' ? b.t-a.t : a.t-b.t).map(x=>x.d); }
  const names = new Set(allDocs.map(d=>d.student.name+d.student.grade));
  $('t-stats').innerHTML = `<div class="stat"><div class="l">총 응시 건수</div><div class="v">${allDocs.length}</div></div>
   <div class="stat"><div class="l">응시 학생 수</div><div class="v">${names.size}</div></div>
