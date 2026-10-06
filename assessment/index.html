@@ -890,6 +890,8 @@ function goHome(){
 }
 // 통합 관리(출석부 앱) 시작 화면으로 돌아가기 — ?hub= 로 넘어온 주소가 있으면 그곳으로, 없으면 상위 폴더로
 const HUB_URL = (()=>{ try{ return new URLSearchParams(location.search).get('hub') || '../'; }catch(e){ return '../'; } })();
+// 통합 메뉴(LMS 로그인 후)에서 들어온 경우 교사 모드 PIN 생략
+try{ if(new URLSearchParams(location.search).get('hub')) sessionStorage.setItem('wg_teacher','1'); }catch(e){}
 document.addEventListener('keydown',e=>{
  if(e.key!=='Backspace') return;
  const t=e.target; if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return;
