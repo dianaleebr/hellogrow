@@ -490,8 +490,7 @@ body.print-mode #print-area{display:block;max-width:820px;margin:0 auto;padding:
    </div>
   </div>
   <div class="card" style="max-width:760px;margin-top:16px">
-   <h2>자유 작문 배점 준거</h2>
-   <p class="muted" style="margin:6px 0 12px">시험지별로 채점 준거와 배점을 정합니다. 배점 합계는 <b>9점</b>이어야 합니다. 저장하면 모든 교사 PC에 공유됩니다.</p>
+   <h2 style="margin-bottom:12px">자유 작문 배점</h2>
    <div class="tabs" style="margin-bottom:10px">
     <button class="tab active" data-rl="1" onclick="rubricTab(1)">Test 1 · 초등 기초</button>
     <button class="tab" data-rl="2" onclick="rubricTab(2)">Test 2 · 초등 심화</button>
@@ -896,7 +895,8 @@ document.addEventListener('keydown',e=>{
  if([...document.querySelectorAll('.overlay')].some(o=>getComputedStyle(o).display!=='none')) return;
  e.preventDefault();
  const onLanding = !$('scr-landing').classList.contains('hidden');
- if(onLanding) goHub(); else goHome();
+ const onReport = !$('scr-report').classList.contains('hidden');
+ if(onLanding) goHub(); else if(onReport) openTeacher(true); else goHome();
 });
 function goHub(){
  if(session && !session.finished && !confirm('시험을 중단하고 통합 메뉴로 돌아갈까요? (진행 내용은 이 브라우저에 임시 저장됩니다)')) return;
@@ -907,7 +907,9 @@ try{
  history.replaceState({wg:'landing'},'');
  window.addEventListener('popstate', e=>{
   const onLanding = !$('scr-landing').classList.contains('hidden');
-  if(!onLanding){ showScreen('landing'); history.pushState({wg:'landing'},''); }
+  const onReport = !$('scr-report').classList.contains('hidden');
+  if(onReport){ openTeacher(true); history.pushState({wg:'inner'},''); }
+  else if(!onLanding){ showScreen('landing'); history.pushState({wg:'landing'},''); }
   else { location.href = HUB_URL; }
  });
 }catch(e){}
