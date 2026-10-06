@@ -4784,16 +4784,17 @@ function renderStampV2(){
         agg[sid].cls.push(c.name);
       });
     });
-    const all = Object.values(agg).sort((a,b)=>(b.total-a.total) || a.name.localeCompare(b.name,'ko'));
+    const all = Object.values(agg).sort((a,b)=>b.total-a.total);
     const hd = rankSec.querySelector('div');
     if(hd) hd.textContent = '전체 학생 스탬프 랭킹 / All Students Ranking';
     rankSec.style.display = 'block';
     document.getElementById('stamp-rank-table-v2').innerHTML = all.length ? all.map((r,i)=>{
       const pct = Math.min(100, Math.round(r.total/STAMP_REWARD*100));
-      const rank = stampRank(all, i);   // 메달 판정용 (동점 공동 순위)
-      const medal = r.total>0 ? (rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'') : '';
+      const rank = stampRank(all, i);   // 동점이면 공동 순위
+      const tied = stampTied(all, i);
+      const medal = rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'';
       return `<tr style="border-top:1px solid var(--line)">
-        <td style="padding:9px 14px;font-size:13px;font-weight:800;width:32px;color:var(--ink3)">${i+1}</td>
+        <td style="padding:9px 14px;font-size:13px;font-weight:800;width:32px;color:var(--ink3)">${rank}</td>
         <td style="padding:9px 8px;font-size:13px;font-weight:700">${medal} ${r.name} <span style="font-size:11px;font-weight:500;color:var(--ink3)">${r.cls.join(', ')}</span></td>
         <td style="padding:9px 8px;width:120px"><div style="background:#f0f0f0;height:6px;overflow:hidden;border-radius:3px"><div style="height:100%;background:var(--grn);width:${pct}%"></div></div></td>
         <td style="padding:9px 14px;font-size:13px;font-weight:900;text-align:right;white-space:nowrap">${r.total}<span style="font-size:10px;font-weight:600;color:var(--ink3)"> pt</span></td>
@@ -4841,16 +4842,17 @@ function renderStampV2(){
   // 랭킹
   const sorted = [...stuIds]
     .map(sid=>({ sid, name:(students.find(s=>s.id===sid)||{name:sid}).name, d:getStuStamp(clsId,sid) }))
-    .sort((a,b)=>(b.d.total-a.d.total) || String(a.name).localeCompare(String(b.name),'ko'));
+    .sort((a,b)=>b.d.total-a.d.total);
 
   rankSec.style.display = 'block';
   document.getElementById('stamp-rank-table-v2').innerHTML =
     sorted.map(({name,d},i)=>{
       const rank = stampRank(sorted.map(x=>({total:x.d.total})), i);
-      const medal = d.total>0 ? (rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'') : '';
+      const tied = stampTied(sorted.map(x=>({total:x.d.total})), i);
+      const medal = rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'';
       const pct = Math.min(100, Math.round(d.total/STAMP_REWARD*100));
       return `<tr style="border-top:1px solid var(--line)">
-        <td style="padding:9px 14px;font-size:13px;font-weight:800;width:32px;color:var(--ink3)">${i+1}</td>
+        <td style="padding:9px 14px;font-size:13px;font-weight:800;width:32px;color:var(--ink3)">${rank}</td>
         <td style="padding:9px 8px;font-size:13px;font-weight:700">${medal} ${name}</td>
         <td style="padding:9px 8px;width:120px">
           <div style="background:#f0f0f0;height:6px;overflow:hidden">
