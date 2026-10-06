@@ -498,8 +498,8 @@ body.print-mode #print-area{display:block;max-width:820px;margin:0 auto;padding:
    </div>
    <div id="rubric-editor"></div>
    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap">
-    <div><button class="btn ghost sm" onclick="rubricAddRow()">+ 준거 추가</button> <button class="btn ghost sm" onclick="rubricReset()">기본값으로</button></div>
-    <div style="display:flex;gap:10px;align-items:center"><span id="rubric-sum" class="muted"></span><button class="btn primary" onclick="saveRubric()">배점 준거 저장</button></div>
+    <div><button class="btn ghost sm" onclick="rubricAddRow()">+ 항목 추가</button> <button class="btn ghost sm" onclick="rubricReset()">기본값으로</button></div>
+    <div style="display:flex;gap:10px;align-items:center"><span id="rubric-sum" class="muted"></span><button class="btn primary" onclick="saveRubric()">배점 저장</button></div>
    </div>
   </div>
  </div>
@@ -839,7 +839,7 @@ const RUBRIC_DEFAULT = {
 };
 let RUBRIC = JSON.parse(JSON.stringify(RUBRIC_DEFAULT));
 let rubricLevel = 1, rubricDraft = null;
-function rubricClean(r){ const out={}; [1,2,3].forEach(l=>{ const arr=Array.isArray(r&&r[l])?r[l]:null; out[l]=(arr&&arr.length?arr:RUBRIC_DEFAULT[l]).map(c=>({name:String(c.name||'').trim()||'준거', pts:Math.max(0,parseInt(c.pts)||0), desc:String(c.desc||'').trim()})); }); return out; }
+function rubricClean(r){ const out={}; [1,2,3].forEach(l=>{ const arr=Array.isArray(r&&r[l])?r[l]:null; out[l]=(arr&&arr.length?arr:RUBRIC_DEFAULT[l]).map(c=>({name:String(c.name||'').trim()||'항목', pts:Math.max(0,parseInt(c.pts)||0), desc:String(c.desc||'').trim()})); }); return out; }
 function rubricFor(level){ return RUBRIC[level] || RUBRIC_DEFAULT[level]; }
 function rubricText(level){ return rubricFor(level).map(c=>`${c.name} ${c.pts}점${c.desc?'('+c.desc+')':''}`).join(' · '); }
 async function loadRubric(){
@@ -856,20 +856,20 @@ function renderRubricEditor(){
  if(!rubricDraft) rubricDraft=JSON.parse(JSON.stringify(RUBRIC));
  document.querySelectorAll('[data-rl]').forEach(b=>b.classList.toggle('active', +b.dataset.rl===rubricLevel));
  const rows=rubricDraft[rubricLevel];
- $('rubric-editor').innerHTML = `<table class="tbl" style="width:100%"><thead><tr><th style="width:22%">준거</th><th>설명 (채점 기준)</th><th style="width:70px">배점</th><th style="width:40px"></th></tr></thead><tbody>` +
+ $('rubric-editor').innerHTML = `<table class="tbl" style="width:100%"><thead><tr><th style="width:22%">항목</th><th>채점 기준</th><th style="width:70px">배점</th><th style="width:40px"></th></tr></thead><tbody>` +
   rows.map((c,i)=>`<tr class="rb-row"><td><input class="rb-name" value="${esc(c.name)}" style="width:100%"></td><td><input class="rb-desc" value="${esc(c.desc)}" style="width:100%"></td><td><input class="rb-pts" type="number" min="0" max="${RUBRIC_TOTAL}" value="${c.pts}" style="width:60px" oninput="rubricSumUpdate()"></td><td><button class="btn sm ghost" title="삭제" onclick="rubricDelRow(${i})">✕</button></td></tr>`).join('') + '</tbody></table>';
  rubricSumUpdate();
 }
 function rubricSumUpdate(){ const sum=[...document.querySelectorAll('#rubric-editor .rb-pts')].reduce((a,el)=>a+(parseInt(el.value)||0),0); const el=$('rubric-sum'); if(!el) return; el.innerHTML = sum===RUBRIC_TOTAL ? `<span style="color:var(--green);font-weight:700">합계 ${sum} / ${RUBRIC_TOTAL}점</span>` : `<span style="color:var(--red);font-weight:700">합계 ${sum} / ${RUBRIC_TOTAL}점 — 9점이 되도록 맞춰 주세요</span>`; }
 function rubricAddRow(){ syncRubricDraft(); rubricDraft[rubricLevel].push({name:'', pts:0, desc:''}); renderRubricEditor(); }
-function rubricDelRow(i){ syncRubricDraft(); if(rubricDraft[rubricLevel].length<=1) return toast('준거는 최소 1개 필요합니다.'); rubricDraft[rubricLevel].splice(i,1); renderRubricEditor(); }
-function rubricReset(){ if(!confirm(`Test ${rubricLevel} 준거를 기본값으로 되돌릴까요? (저장을 눌러야 적용됩니다)`)) return; rubricDraft[rubricLevel]=JSON.parse(JSON.stringify(RUBRIC_DEFAULT[rubricLevel])); renderRubricEditor(); }
+function rubricDelRow(i){ syncRubricDraft(); if(rubricDraft[rubricLevel].length<=1) return toast('항목은 최소 1개 필요합니다.'); rubricDraft[rubricLevel].splice(i,1); renderRubricEditor(); }
+function rubricReset(){ if(!confirm(`Test ${rubricLevel} 배점을 기본값으로 되돌릴까요? (저장을 눌러야 적용됩니다)`)) return; rubricDraft[rubricLevel]=JSON.parse(JSON.stringify(RUBRIC_DEFAULT[rubricLevel])); renderRubricEditor(); }
 async function saveRubric(){
  syncRubricDraft();
- for(const l of [1,2,3]){ const sum=rubricDraft[l].reduce((a,c)=>a+(parseInt(c.pts)||0),0); if(sum!==RUBRIC_TOTAL){ rubricLevel=l; renderRubricEditor(); return toast(`Test ${l} 배점 합계가 ${sum}점입니다. ${RUBRIC_TOTAL}점으로 맞춰 주세요.`, 3200); } if(rubricDraft[l].some(c=>!c.name)){ rubricLevel=l; renderRubricEditor(); return toast(`Test ${l}: 준거 이름을 입력해 주세요.`); } }
+ for(const l of [1,2,3]){ const sum=rubricDraft[l].reduce((a,c)=>a+(parseInt(c.pts)||0),0); if(sum!==RUBRIC_TOTAL){ rubricLevel=l; renderRubricEditor(); return toast(`Test ${l} 배점 합계가 ${sum}점입니다. ${RUBRIC_TOTAL}점으로 맞춰 주세요.`, 3200); } if(rubricDraft[l].some(c=>!c.name)){ rubricLevel=l; renderRubricEditor(); return toast(`Test ${l}: 항목 이름을 입력해 주세요.`); } }
  RUBRIC=rubricClean(rubricDraft); localStorage.setItem(LS_RUBRIC, JSON.stringify(RUBRIC));
  let cloud=false; if(fdb){ try{ await fdb.collection('config').doc('rubric').set({levels:RUBRIC, updatedAt:new Date().toISOString()}); cloud=true; }catch(e){ console.warn(e); } }
- toast(cloud?'배점 준거를 저장했습니다. (모든 교사 PC에 공유)':'배점 준거를 이 기기에 저장했습니다. (클라우드 연결 실패)', 3000);
+ toast(cloud?'배점을 저장했습니다. (모든 교사 PC에 공유)':'배점을 이 기기에 저장했습니다. (클라우드 연결 실패)', 3000);
 }
 
 // ── 화면 전환 ──
@@ -1339,7 +1339,7 @@ function openGrade(id){
  $('grade-text').textContent = d.answers.writing[q.id] || '(작성하지 않음)';
  $('grade-score').value = d.free&&d.free.score!=null ? d.free.score : ''; $('grade-fb').value = d.free&&d.free.feedback || '';
  const rub = rubricFor(d.level); const prev = (d.free && d.free.criteria) || [];
- $('grade-criteria').innerHTML = `<div class="muted" style="font-size:12px;margin-bottom:6px">채점 준거 (Test ${d.level})</div><table class="tbl" style="width:100%;margin-bottom:12px"><tbody>` +
+ $('grade-criteria').innerHTML = `<div class="muted" style="font-size:12px;margin-bottom:6px">채점 항목 (Test ${d.level})</div><table class="tbl" style="width:100%;margin-bottom:12px"><tbody>` +
   rub.map((c,i)=>{ const pv = prev.find(x=>x.name===c.name); return `<tr><td style="width:26%"><b>${esc(c.name)}</b></td><td class="muted" style="font-size:12px">${esc(c.desc||'')}</td><td style="width:110px;white-space:nowrap"><input class="gc-pts" data-i="${i}" type="number" min="0" max="${c.pts}" value="${pv&&pv.pts!=null?pv.pts:''}" style="width:56px" oninput="gradeSumUpdate()"> / ${c.pts}</td></tr>`; }).join('') + '</tbody></table>';
  $('ov-grade').classList.add('open');
 }
