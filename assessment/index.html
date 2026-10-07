@@ -1202,7 +1202,8 @@ function gradeBadge(pct, size=14){ const g=gradeOf(pct); return `<span style="di
 // ═══════════════════════ 윌그로우 배정 레벨 (Theme Bridge 교재 매핑) ═══════════════════════
 // 원칙: 시리즈 경계(Climber/Explorer/Navigator)는 '독해 수준'으로, 시리즈 안의 권은 '문법'으로 미세 조정.
 // 성취도평가의 절대평가 수준(초1~중2+)을 기준점으로 삼아 총점을 권 인덱스(0~27)로 보간한다.
-const WG_BOOKS = (()=>{ const o=[]; ['Climber','Explorer'].forEach(s=>['1A','1B','1C','1D','2A','2B','2C','2D'].forEach(b=>o.push(s+' '+b))); ['1A','1B','1C','1D','2A','2B','2C','2D','3A','3B','3C','3D'].forEach(b=>o.push('Navigator '+b)); return o; })();
+const WG_BOOKS = (()=>{ const o=[]; ['Climber','Explorer'].forEach(s=>['1A','1B','1C','1D','2A','2B','2C','2D'].forEach(b=>o.push(s+' '+b))); ['1A','1B','1C','1D','2A','2B','2C','2D','3A','3B','3C','3D'].forEach(b=>o.push('Navigator '+b)); ['1A','1B','1C','2A','2B','2C','3A','3B','3C'].forEach(b=>o.push('Essentials '+b)); return o; })();
+// 인덱스: Climber 0~7 · Explorer 8~15 · Navigator 16~27 · Essentials(The Essentials for Middle School) 28~36
 // 교재 본문 분석(2026-10, Explorer·Navigator Student Book 전권 지문 측정) 결과:
 //  - 문장 난이도(문장 길이·FK 지수·단어 길이·문법)는 Explorer 2A~2D ≈ Navigator 1A~2A 로 겹치고,
 //    Navigator 는 지문 길이(150→250단어)·교과형 내용·읽기 기술로 구분된다. 시리즈 경계 = 독해.
@@ -1212,7 +1213,7 @@ const WG_BOOKS = (()=>{ const o=[]; ['Climber','Explorer'].forEach(s=>['1A','1B'
 const WG_READ_GATE = {1:85, 2:60, 3:40};   // 상위 시리즈 진입 독해 문턱 (Test1→Explorer, Test2·3→Navigator)
 const WG_W = {r:0.5, g:0.3, v:0.2};
 function wgComposite(r,g,v){ return WG_W.r*r + WG_W.g*g + WG_W.v*v; }
-function wgSeries(idx){ return idx<8?'Climber':idx<16?'Explorer':'Navigator'; }
+function wgSeries(idx){ return idx<8?'Climber':idx<16?'Explorer':idx<28?'Navigator':'Essentials'; }
 function wgPlacement(a, d){
  const L = d.level, total = a.total;
  const r = a.dom.reading.pct, g = a.dom.grammar.pct, v = a.dom.vocab.pct;
@@ -1228,10 +1229,16 @@ function wgPlacement(a, d){
   if(up){ series='Navigator'; idx = 16 + Math.max(0,(c-55))/45*5; }        // Navigator 1A~2B
   else  { series='Explorer';  idx = 8 + Math.min(1, c/75)*7; }              // Explorer 1A~2D
  } else {
-  if(up){ series='Navigator'; idx = 16 + Math.max(0,(c-40))/60*8; }        // Navigator 1A~3A
+  const isMS = gradeIdx(d.student.grade) >= 6;                              // 중1 이상
+  const cE = 0.4*r + 0.4*g + 0.2*v;                                         // Essentials 는 내신 문법 비중이 커서 문법 가중
+  if(up && isMS && r>=70 && cE>=75){ series='Essentials'; idx = 28 + Math.min(1,(cE-75)/25)*6; }   // Essentials 1A~3A
+  else if(up){ series='Navigator'; idx = 16 + Math.max(0,(c-40))/60*11;      // Navigator 1A~3D
+    if(!isMS && c>=90) notes.push('중학 진학 시 The Essentials for Middle School 1A 진입 가능'); 
+    if(isMS && r>=70 && cE<75) notes.push(`중등이지만 종합(문법 가중) ${Math.round(cE)}점 — Essentials 진입 기준 75점 미달`);
+  }
   else  { series='Explorer';  idx = 11 + Math.min(1, c/50)*4; }             // Explorer 1D~2D
  }
- if(L===3 && a.perfectAll){ idx = Math.max(idx, 25); notes.push('객관식 전부 정답 — 상한 측정 불가, Navigator 3B 이상 가능'); }
+ if(L===3 && a.perfectAll){ if(series==='Essentials'){ idx = Math.max(idx, 35); notes.push('객관식 전부 정답 — 상한 측정 불가, Essentials 3B 이상 가능'); } else { idx = Math.max(idx, 27); notes.push('객관식 전부 정답 — 상한 측정 불가'); } }
  if(!up) notes.push(`독해 ${r}% — ${L===1?'Explorer':'Navigator'} 진입 기준 ${gate}% 미달`);
  else if(r < gate+8) notes.push(`독해 ${r}% — 진입 기준(${gate}%)에 근접, 하위 시리즈 마지막 권도 검토`);
  if(g<50) notes.push(`문법 ${g}% — 배정 권에서 Language Framework 보강 필요`);
@@ -1243,9 +1250,10 @@ function wgPlacement(a, d){
  const frac = Math.abs(raw - Math.round(raw));
  const borderline = frac>0.35 || Math.abs(r-gate) < 8;
  return { idx, book: WG_BOOKS[idx], series, lower: idx>0?WG_BOOKS[idx-1]:null, upper: idx<WG_BOOKS.length-1?WG_BOOKS[idx+1]:null, notes, borderline,
-  basis: `독해 ${r}% (${series} 결정, 기준 ${gate}%) · 종합 ${Math.round(c)}점 = 독해 ${r}×0.5 + 문법 ${g}×0.3 + 어휘 ${v}×0.2 · 총점 ${total}점(${lvName(a.totalIdx)})` };
+  basis: series==='Essentials' ? `독해 ${r}% · 중1 이상 · 종합(문법 가중) ${Math.round(0.4*r+0.4*g+0.2*v)}점 = 독해 ${r}×0.4 + 문법 ${g}×0.4 + 어휘 ${v}×0.2 · 총점 ${total}점(${lvName(a.totalIdx)})`
+       : `독해 ${r}% (${series} 결정, 기준 ${gate}%) · 종합 ${Math.round(c)}점 = 독해 ${r}×0.5 + 문법 ${g}×0.3 + 어휘 ${v}×0.2 · 총점 ${total}점(${lvName(a.totalIdx)})` };
 }
-const WG_SERIES_DESC = { Climber:'초급 · 기초 회화·파닉스 (8권)', Explorer:'중급 · 문법·4기능 통합 (8권)', Navigator:'고급 · 교과형 읽기·쓰기 심화 (12권)' };
+const WG_SERIES_DESC = { Climber:'초급 · 기초 회화·파닉스 (8권)', Explorer:'중급 · 문법·4기능 통합 (8권)', Navigator:'고급 · 교과형 읽기·쓰기 심화 (12권)', Essentials:'중등 · 내신 문법·유형별 독해·듣기 (9권)' };
 function wgFinalBook(d, pl){ return (d.wgLevel && d.wgLevel.override) || pl.book; }
 let wgAdjustId = null;
 function openWgAdjust(id){
