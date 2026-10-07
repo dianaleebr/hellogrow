@@ -1196,43 +1196,35 @@ function gradeBadge(pct, size=14){ const g=gradeOf(pct); return `<span style="di
 // 원칙: 시리즈 경계(Climber/Explorer/Navigator)는 '독해 수준'으로, 시리즈 안의 권은 '문법'으로 미세 조정.
 // 성취도평가의 절대평가 수준(초1~중2+)을 기준점으로 삼아 총점을 권 인덱스(0~27)로 보간한다.
 const WG_BOOKS = (()=>{ const o=[]; ['Climber','Explorer'].forEach(s=>['1A','1B','1C','1D','2A','2B','2C','2D'].forEach(b=>o.push(s+' '+b))); ['1A','1B','1C','1D','2A','2B','2C','2D','3A','3B','3C','3D'].forEach(b=>o.push('Navigator '+b)); return o; })();
-// 절대평가 수준(초1=0 … 중2+=8) ↔ 권 인덱스 기준점
-const WG_LEVEL_ANCHOR = {0:0, 1:2, 2:4, 3:6, 4:8, 5:11, 6:13, 7:17, 8:21};
-// 시험지별 총점 % → 권 인덱스 보간표 (absIdx 임계값과 동일한 구간)
-const WG_ANCHORS = {
- 1:[[0,0],[35,2],[55,4],[75,6],[90,8],[100,9]],
- 2:[[0,4],[35,6],[55,8],[75,11],[90,13],[100,15]],
- 3:[[0,8],[45,11],[65,13],[85,17],[100,21]]
-};
-function wgInterp(level, pct){
- const A = WG_ANCHORS[level]||WG_ANCHORS[2];
- for(let i=0;i<A.length-1;i++){ const [p0,i0]=A[i],[p1,i1]=A[i+1]; if(pct<=p1) return i0+(i1-i0)*((pct-p0)/(p1-p0)); }
- return A[A.length-1][1];
-}
+// 교재 본문 분석(2026-10, Explorer·Navigator Student Book 전권 지문 측정) 결과:
+//  - 문장 난이도(문장 길이·FK 지수·단어 길이·문법)는 Explorer 2A~2D ≈ Navigator 1A~2A 로 겹치고,
+//    Navigator 는 지문 길이(150→250단어)·교과형 내용·읽기 기술로 구분된다. 시리즈 경계 = 독해.
+//  - 성취도평가 독해 지문 수준: Test 1 ≈ Climber 2권대, Test 2 ≈ Explorer 2A~2C / Navigator 1A, Test 3 ≈ Navigator 1D~2B
+// → 독해 정답률을 1차 기준으로 "시험지 기준점 ± 권"으로 환산하고, 문법·어휘로 ±1권 조정한다.
+const WG_READ_ANCHOR = {1:4, 2:15, 3:20};   // 독해 70% 일 때의 권 인덱스 (Climber 2A / Explorer 2D / Navigator 2A)
+function wgReadIdx(level, r){ return (WG_READ_ANCHOR[level]||15) + (r-70)/7.5; }  // 15%당 2권
 function wgSeries(idx){ return idx<8?'Climber':idx<16?'Explorer':'Navigator'; }
 function wgPlacement(a, d){
  const L = d.level, total = a.total;
  const r = a.dom.reading.pct, g = a.dom.grammar.pct, v = a.dom.vocab.pct;
  const notes = [];
- let idx = wgInterp(L, total);
- if(L===3 && a.perfectAll){ idx = 22; notes.push('객관식 전부 정답 — 상한 측정 불가, Navigator 2C 이상 가능'); }
- const base = Math.round(idx);
- // 독해 게이트: 시리즈 경계는 독해로 판단
- // (Test 3 독해 지문은 Navigator 수준이므로 Navigator 진입만 판단, Test 1·2 독해는 Explorer 진입 판단)
- if(idx>=16 && r<60){ idx = Math.min(idx, 15); notes.push(`독해 ${r}% — Navigator 진입 전 Explorer 마무리 권장`); }
- else if(L<=2 && idx>=8 && r<50){ idx = Math.min(idx, 7); notes.push(`독해 ${r}% — Explorer 진입 전 Climber 마무리 권장`); }
- else if(L===3 && idx>=8 && r<40){ idx = Math.max(8, idx-2); notes.push(`독해 ${r}% — 독해 보강을 위해 2권 하향`); }
- // 문법으로 시리즈 안에서 ±1권
- const sLo = idx<8?0:idx<16?8:16, sHi = idx<8?7:idx<16?15:27;
- if(g>=85 && r>=60){ idx = Math.min(sHi, idx+1); notes.push(`문법 ${g}% 우수 — 1권 상향`); }
- else if(g<45){ idx = Math.max(sLo, idx-1); notes.push(`문법 ${g}% — 1권 하향`); }
- // 어휘가 크게 뒤처지면 하향 경고만
- if(v<40 && idx>=8) notes.push(`어휘 ${v}% — 배정 권의 어휘 보강 병행 필요`);
+ let idx = wgReadIdx(L, r);
+ if(L===3 && a.perfectAll){ idx = Math.max(idx, 24); notes.push('객관식 전부 정답 — 상한 측정 불가, Navigator 3A 이상 가능'); }
+ const readIdx = idx;
+ // 문법: 시리즈 안에서 ±1권
+ if(g>=85) { idx += 1; notes.push(`문법 ${g}% 우수 — 1권 상향`); }
+ else if(g<50){ idx -= 1; notes.push(`문법 ${g}% — 1권 하향`); }
+ // 어휘가 크게 뒤처지면 1권 하향 (Navigator 는 교과 어휘 비중이 큼)
+ if(v<45){ idx -= 1; notes.push(`어휘 ${v}% — 1권 하향, 어휘 보강 병행`); }
+ // Test 1 에서 독해 만점이어도 Explorer 1B 를 넘지 않음 (지문 수준이 Climber 권대)
+ if(L===1) idx = Math.min(idx, 9);
+ // Test 2 는 Navigator 2B 까지 (그 이상은 Test 3 재응시로 확인)
+ if(L===2 && idx>21){ idx = 21; notes.push('Test 2 상한 — Navigator 2C 이상은 Test 3 응시로 확인'); }
  idx = Math.max(0, Math.min(WG_BOOKS.length-1, Math.round(idx)));
- const frac = Math.abs(wgInterp(L,total) - Math.round(wgInterp(L,total)));
+ const frac = Math.abs(readIdx - Math.round(readIdx));
  const borderline = frac>0.35 || notes.length>1;
  return { idx, book: WG_BOOKS[idx], series: wgSeries(idx), lower: idx>0?WG_BOOKS[idx-1]:null, upper: idx<WG_BOOKS.length-1?WG_BOOKS[idx+1]:null, notes, borderline,
-  basis: `총점 ${total}점(${lvName(a.totalIdx)}) · 독해 ${r}% · 문법 ${g}% · 어휘 ${v}%` };
+  basis: `독해 ${r}% (Test ${L} 지문 기준 ${WG_BOOKS[Math.max(0,Math.min(27,Math.round(readIdx)))]}) · 문법 ${g}% · 어휘 ${v}% · 총점 ${total}점(${lvName(a.totalIdx)})` };
 }
 const WG_SERIES_DESC = { Climber:'초급 · 기초 회화·파닉스 (8권)', Explorer:'중급 · 문법·4기능 통합 (8권)', Navigator:'고급 · 교과형 읽기·쓰기 심화 (12권)' };
 function wgFinalBook(d, pl){ return (d.wgLevel && d.wgLevel.override) || pl.book; }
