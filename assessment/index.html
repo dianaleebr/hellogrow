@@ -1229,7 +1229,8 @@ function wgPlacement(a, d){
  else if(r < gate+8) notes.push(`독해 ${r}% — 진입 기준(${gate}%)에 근접, 하위 시리즈 마지막 권도 검토`);
  if(g<50) notes.push(`문법 ${g}% — 배정 권에서 Language Framework 보강 필요`);
  if(v<45) notes.push(`어휘 ${v}% — 어휘 보강 병행`);
- if(L===2 && up && idx>=21) notes.push('Test 2 상한 — Navigator 2C 이상은 Test 3 응시로 확인');
+ if(L===2 && up && (idx>=21 || (r>=100 && c>=85))) notes.push('Test 2 상한 도달 — 독해 만점·종합 85점 이상: 실제 수준이 더 높을 수 있음. Test 3 응시 권장');
+ if(L===1 && up && r>=100 && c>=90) notes.push('Test 1 상한 도달 — Test 2 응시 권장');
  const raw = idx;
  idx = Math.max(0, Math.min(WG_BOOKS.length-1, Math.round(idx)));
  const frac = Math.abs(raw - Math.round(raw));
@@ -1392,7 +1393,7 @@ function renderResults(){
     <td><span class="chip" style="background:${L.color}22;color:${L.color}">${L.name}</span></td>
     <td>${a.dom.vocab.pts}/24</td><td>${a.dom.grammar.pts}/24</td><td>${a.dom.reading.pts}/28</td><td>${a.dom.writing.pts}/24</td>
     <td><b>${a.total}</b></td><td style="font-size:12px">${lvName(a.totalIdx)}</td>
-    <td style="font-size:12px;white-space:nowrap">${(()=>{const pl=wgPlacement(a,d); const f=wgFinalBook(d,pl); return `<b>${esc(f)}</b>${d.wgLevel&&d.wgLevel.override?' <span class="chip amber" style="font-size:10px;padding:1px 6px">조정</span>':''}`;})()}</td>
+    <td style="font-size:12px;white-space:nowrap">${(()=>{const pl=wgPlacement(a,d); const f=wgFinalBook(d,pl); return `<b>${esc(f)}</b>${d.wgLevel&&d.wgLevel.override?' <span class="chip amber" style="font-size:10px;padding:1px 6px">조정</span>':''}${pl.notes.some(n=>n.includes('상한 도달'))?' <span class="chip amber" style="font-size:10px;padding:1px 6px" title="시험지 상한 도달 — 상위 시험지 응시 권장">상한↑</span>':''}`;})()}</td>
     <td>${a.freeItem.graded ? `<span class="chip green">${d.free.score}/9</span>` : `<button class="btn sm ghost" onclick="openGrade('${d.id}')">채점</button>`}</td>
     <td style="white-space:nowrap"><button class="btn sm primary" onclick="openReport('${d.id}')">성적표</button> <button class="btn sm danger" onclick="if(confirm('삭제할까요?'))deleteDoc('${d.id}')">삭제</button></td></tr>`; }).join('') + '</tbody>';
 }
@@ -1588,6 +1589,7 @@ function openReport(id){
         <div class="wg-place-book">${esc(fin)}</div>
         <div class="muted" style="font-size:12px">${esc(WG_SERIES_DESC[fin.split(' ')[0]]||'')}</div>
         ${ov ? `<div class="chip amber" style="margin-top:8px">강사 조정 (자동 배정: ${esc(pl.book)})</div>` : (pl.borderline ? `<div class="chip gray" style="margin-top:8px">경계 구간 — ${esc([pl.lower,pl.upper].filter(Boolean).join(' / '))} 도 검토</div>` : '')}
+        ${pl.notes.some(n=>n.includes('상한 도달')) ? `<div class="chip amber" style="margin-top:8px">시험지 상한 도달 — 상위 시험지 응시 권장</div>` : ''}
        </div>
        <div class="wg-place-side">
         <div style="font-size:12px;color:var(--text2);margin-bottom:6px">배정 근거</div>
