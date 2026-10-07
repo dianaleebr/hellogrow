@@ -530,6 +530,16 @@ body.print-mode #print-area{display:block;max-width:820px;margin:0 auto;padding:
   <div class="foot"><button class="btn ghost" onclick="closeOv('ov-pin')">취소</button><button class="btn primary" onclick="checkPin()">확인</button></div>
  </div>
 </div>
+<!-- 모달: 배정 레벨 강사 조정 (교사 화면 전용) -->
+<div class="overlay" id="ov-wg">
+ <div class="modal" style="width:480px">
+  <h2>배정 레벨 강사 조정</h2>
+  <div id="wg-adj-info" class="muted" style="font-size:13px;margin-bottom:12px"></div>
+  <div class="field"><label>배정 레벨</label><select id="wg-adj-sel"></select></div>
+  <p class="muted" style="font-size:12px">조정하면 성적표에는 조정된 레벨만 표시되고, 조정 여부는 교사 화면(응시 결과 목록)에서만 보입니다.</p>
+  <div class="foot"><button class="btn ghost" onclick="closeOv('ov-wg')">취소</button><button class="btn primary" onclick="saveWgAdjust()">저장</button></div>
+ </div>
+</div>
 <!-- 모달: 라이팅 채점 -->
 <div class="overlay" id="ov-grade">
  <div class="modal" style="width:560px">
@@ -1240,10 +1250,21 @@ function wgPlacement(a, d){
 }
 const WG_SERIES_DESC = { Climber:'초급 · 기초 회화·파닉스 (8권)', Explorer:'중급 · 문법·4기능 통합 (8권)', Navigator:'고급 · 교과형 읽기·쓰기 심화 (12권)' };
 function wgFinalBook(d, pl){ return (d.wgLevel && d.wgLevel.override) || pl.book; }
-async function setWgOverride(id, book){
- await updateDoc(id, {wgLevel:{override: book||null, by:'teacher', at:new Date().toISOString()}});
- toast(book ? `배정 레벨을 ${book}(으)로 조정했습니다.` : '자동 배정으로 되돌렸습니다.');
- openReport(id);
+let wgAdjustId = null;
+function openWgAdjust(id){
+ const d = allDocs.find(x=>x.id===id); if(!d) return;
+ const a = analyze(d, [], true); const pl = wgPlacement(a, d); const ov = d.wgLevel && d.wgLevel.override;
+ wgAdjustId = id;
+ $('wg-adj-info').innerHTML = `<b>${esc(d.student.name)}</b> (${esc(d.student.grade)} · Test ${d.level})<br>자동 배정: <b>${esc(pl.book)}</b><br><span style="font-size:12px">${esc(pl.basis)}</span>${pl.notes.length?`<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;line-height:1.6">${pl.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}`;
+ $('wg-adj-sel').innerHTML = `<option value="">자동 배정 (${esc(pl.book)})</option>` + WG_BOOKS.map(b=>`<option value="${b}" ${ov===b?'selected':''}>${b}</option>`).join('');
+ $('ov-wg').classList.add('open');
+}
+async function saveWgAdjust(){
+ const book = $('wg-adj-sel').value;
+ await updateDoc(wgAdjustId, {wgLevel:{override: book||null, by:'teacher', at:new Date().toISOString()}});
+ closeOv('ov-wg'); toast(book ? `배정 레벨을 ${book}(으)로 조정했습니다.` : '자동 배정으로 되돌렸습니다.');
+ renderResults();
+ if(!$('scr-report').classList.contains('hidden') && reportId===wgAdjustId) openReport(reportId);
 }
 function lvName(i){ return i<=5 ? `초등학교 ${i+1}학년 수준` : i===6 ? '중학교 1학년 수준' : i===7 ? '중학교 2학년 수준' : '중학교 2학년 이상 수준'; }
 function gradeIdx(g){ return Math.max(0, GRADES.indexOf(g)); }
@@ -1393,7 +1414,7 @@ function renderResults(){
     <td><span class="chip" style="background:${L.color}22;color:${L.color}">${L.name}</span></td>
     <td>${a.dom.vocab.pts}/24</td><td>${a.dom.grammar.pts}/24</td><td>${a.dom.reading.pts}/28</td><td>${a.dom.writing.pts}/24</td>
     <td><b>${a.total}</b></td><td style="font-size:12px">${lvName(a.totalIdx)}</td>
-    <td style="font-size:12px;white-space:nowrap">${(()=>{const pl=wgPlacement(a,d); const f=wgFinalBook(d,pl); return `<b>${esc(f)}</b>${d.wgLevel&&d.wgLevel.override?' <span class="chip amber" style="font-size:10px;padding:1px 6px">조정</span>':''}${pl.notes.some(n=>n.includes('상한 도달'))?' <span class="chip amber" style="font-size:10px;padding:1px 6px" title="시험지 상한 도달 — 상위 시험지 응시 권장">상한↑</span>':''}`;})()}</td>
+    <td style="font-size:12px;white-space:nowrap">${(()=>{const pl=wgPlacement(a,d); const f=wgFinalBook(d,pl); return `<b>${esc(f)}</b>${d.wgLevel&&d.wgLevel.override?' <span class="chip amber" style="font-size:10px;padding:1px 6px" title="자동 배정: '+esc(pl.book)+'">조정됨</span>':''}${pl.notes.some(n=>n.includes('상한 도달'))?' <span class="chip amber" style="font-size:10px;padding:1px 6px" title="시험지 상한 도달 — 상위 시험지 응시 권장">상한↑</span>':''}<br><button class="btn sm ghost" style="margin-top:4px;font-size:11px;padding:2px 8px" onclick="openWgAdjust('${d.id}')">강사 조정</button>`;})()}</td>
     <td>${a.freeItem.graded ? `<span class="chip green">${d.free.score}/9</span>` : `<button class="btn sm ghost" onclick="openGrade('${d.id}')">채점</button>`}</td>
     <td style="white-space:nowrap"><button class="btn sm primary" onclick="openReport('${d.id}')">성적표</button> <button class="btn sm danger" onclick="if(confirm('삭제할까요?'))deleteDoc('${d.id}')">삭제</button></td></tr>`; }).join('') + '</tbody>';
 }
@@ -1588,20 +1609,13 @@ function openReport(id){
        <div class="wg-place-main"><div class="muted" style="font-size:12px">Theme Bridge 커리큘럼 기준</div>
         <div class="wg-place-book">${esc(fin)}</div>
         <div class="muted" style="font-size:12px">${esc(WG_SERIES_DESC[fin.split(' ')[0]]||'')}</div>
-        ${ov ? `<div class="chip amber" style="margin-top:8px">강사 조정 (자동 배정: ${esc(pl.book)})</div>` : (pl.borderline ? `<div class="chip gray" style="margin-top:8px">경계 구간 — ${esc([pl.lower,pl.upper].filter(Boolean).join(' / '))} 도 검토</div>` : '')}
+        ${!ov && pl.borderline ? `<div class="chip gray" style="margin-top:8px">경계 구간 — ${esc([pl.lower,pl.upper].filter(Boolean).join(' / '))} 도 검토</div>` : ''}
         ${pl.notes.some(n=>n.includes('상한 도달')) ? `<div class="chip amber" style="margin-top:8px">시험지 상한 도달 — 상위 시험지 응시 권장</div>` : ''}
        </div>
        <div class="wg-place-side">
         <div style="font-size:12px;color:var(--text2);margin-bottom:6px">배정 근거</div>
         <div style="font-size:13px;margin-bottom:8px">${esc(pl.basis)}</div>
         ${pl.notes.length ? `<ul style="margin:0 0 0 16px;padding:0;font-size:12px;color:var(--text2);line-height:1.7">${pl.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-        <div class="no-print" style="margin-top:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-         <span style="font-size:12px;color:var(--text2)">강사 조정</span>
-         <select id="wg-override" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px" onchange="setWgOverride('${d.id}', this.value)">
-          <option value="">자동 배정 (${esc(pl.book)})</option>
-          ${WG_BOOKS.map(b=>`<option value="${b}" ${ov===b?'selected':''}>${b}</option>`).join('')}
-         </select>
-        </div>
        </div>
       </div>`; })()}
    </div>
