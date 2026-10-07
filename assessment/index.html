@@ -1201,30 +1201,41 @@ const WG_BOOKS = (()=>{ const o=[]; ['Climber','Explorer'].forEach(s=>['1A','1B'
 //    Navigator 는 지문 길이(150→250단어)·교과형 내용·읽기 기술로 구분된다. 시리즈 경계 = 독해.
 //  - 성취도평가 독해 지문 수준: Test 1 ≈ Climber 2권대, Test 2 ≈ Explorer 2A~2C / Navigator 1A, Test 3 ≈ Navigator 1D~2B
 // → 독해 정답률을 1차 기준으로 "시험지 기준점 ± 권"으로 환산하고, 문법·어휘로 ±1권 조정한다.
-const WG_READ_ANCHOR = {1:4, 2:15, 3:20};   // 독해 70% 일 때의 권 인덱스 (Climber 2A / Explorer 2D / Navigator 2A)
-function wgReadIdx(level, r){ return (WG_READ_ANCHOR[level]||15) + (r-70)/7.5; }  // 15%당 2권
+// 2단계 배정: (1) 시리즈는 독해 문턱으로 결정 (2) 시리즈 안의 권은 가중 종합점수(독해 50·문법 30·어휘 20)로 결정
+const WG_READ_GATE = {1:85, 2:60, 3:40};   // 상위 시리즈 진입 독해 문턱 (Test1→Explorer, Test2·3→Navigator)
+const WG_W = {r:0.5, g:0.3, v:0.2};
+function wgComposite(r,g,v){ return WG_W.r*r + WG_W.g*g + WG_W.v*v; }
 function wgSeries(idx){ return idx<8?'Climber':idx<16?'Explorer':'Navigator'; }
 function wgPlacement(a, d){
  const L = d.level, total = a.total;
  const r = a.dom.reading.pct, g = a.dom.grammar.pct, v = a.dom.vocab.pct;
+ const c = wgComposite(r,g,v);
+ const gate = WG_READ_GATE[L]||60;
+ const up = r >= gate;                      // 상위 시리즈 진입 여부
  const notes = [];
- let idx = wgReadIdx(L, r);
- if(L===3 && a.perfectAll){ idx = Math.max(idx, 24); notes.push('객관식 전부 정답 — 상한 측정 불가, Navigator 3A 이상 가능'); }
- const readIdx = idx;
- // 문법: 시리즈 안에서 ±1권
- if(g>=85) { idx += 1; notes.push(`문법 ${g}% 우수 — 1권 상향`); }
- else if(g<50){ idx -= 1; notes.push(`문법 ${g}% — 1권 하향`); }
- // 어휘가 크게 뒤처지면 1권 하향 (Navigator 는 교과 어휘 비중이 큼)
- if(v<45){ idx -= 1; notes.push(`어휘 ${v}% — 1권 하향, 어휘 보강 병행`); }
- // Test 1 에서 독해 만점이어도 Explorer 1B 를 넘지 않음 (지문 수준이 Climber 권대)
- if(L===1) idx = Math.min(idx, 9);
- // Test 2 는 Navigator 2B 까지 (그 이상은 Test 3 재응시로 확인)
- if(L===2 && idx>21){ idx = 21; notes.push('Test 2 상한 — Navigator 2C 이상은 Test 3 응시로 확인'); }
+ let idx, series;
+ if(L===1){
+  if(up){ series='Explorer'; idx = 8 + Math.max(0,(c-80))/20*1; }          // Explorer 1A~1B
+  else  { series='Climber';  idx = c/100*7; }                                // Climber 1A~2D
+ } else if(L===2){
+  if(up){ series='Navigator'; idx = 16 + Math.max(0,(c-55))/45*5; }        // Navigator 1A~2B
+  else  { series='Explorer';  idx = 8 + Math.min(1, c/75)*7; }              // Explorer 1A~2D
+ } else {
+  if(up){ series='Navigator'; idx = 16 + Math.max(0,(c-40))/60*8; }        // Navigator 1A~3A
+  else  { series='Explorer';  idx = 11 + Math.min(1, c/50)*4; }             // Explorer 1D~2D
+ }
+ if(L===3 && a.perfectAll){ idx = Math.max(idx, 25); notes.push('객관식 전부 정답 — 상한 측정 불가, Navigator 3B 이상 가능'); }
+ if(!up) notes.push(`독해 ${r}% — ${L===1?'Explorer':'Navigator'} 진입 기준 ${gate}% 미달`);
+ else if(r < gate+8) notes.push(`독해 ${r}% — 진입 기준(${gate}%)에 근접, 하위 시리즈 마지막 권도 검토`);
+ if(g<50) notes.push(`문법 ${g}% — 배정 권에서 Language Framework 보강 필요`);
+ if(v<45) notes.push(`어휘 ${v}% — 어휘 보강 병행`);
+ if(L===2 && up && idx>=21) notes.push('Test 2 상한 — Navigator 2C 이상은 Test 3 응시로 확인');
+ const raw = idx;
  idx = Math.max(0, Math.min(WG_BOOKS.length-1, Math.round(idx)));
- const frac = Math.abs(readIdx - Math.round(readIdx));
- const borderline = frac>0.35 || notes.length>1;
- return { idx, book: WG_BOOKS[idx], series: wgSeries(idx), lower: idx>0?WG_BOOKS[idx-1]:null, upper: idx<WG_BOOKS.length-1?WG_BOOKS[idx+1]:null, notes, borderline,
-  basis: `독해 ${r}% (Test ${L} 지문 기준 ${WG_BOOKS[Math.max(0,Math.min(27,Math.round(readIdx)))]}) · 문법 ${g}% · 어휘 ${v}% · 총점 ${total}점(${lvName(a.totalIdx)})` };
+ const frac = Math.abs(raw - Math.round(raw));
+ const borderline = frac>0.35 || Math.abs(r-gate) < 8;
+ return { idx, book: WG_BOOKS[idx], series, lower: idx>0?WG_BOOKS[idx-1]:null, upper: idx<WG_BOOKS.length-1?WG_BOOKS[idx+1]:null, notes, borderline,
+  basis: `독해 ${r}% (${series} 결정, 기준 ${gate}%) · 종합 ${Math.round(c)}점 = 독해 ${r}×0.5 + 문법 ${g}×0.3 + 어휘 ${v}×0.2 · 총점 ${total}점(${lvName(a.totalIdx)})` };
 }
 const WG_SERIES_DESC = { Climber:'초급 · 기초 회화·파닉스 (8권)', Explorer:'중급 · 문법·4기능 통합 (8권)', Navigator:'고급 · 교과형 읽기·쓰기 심화 (12권)' };
 function wgFinalBook(d, pl){ return (d.wgLevel && d.wgLevel.override) || pl.book; }
