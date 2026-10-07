@@ -130,6 +130,12 @@ body.print-mode .rp-logo img,body.print-mode .plogo img{display:block!important}
 .chip.red{background:var(--red-l);color:var(--red)}
 .chip.purple{background:var(--purple-l);color:var(--purple)}
 .chip.gray{background:#EEF1F5;color:var(--text2)}
+.wg-place{display:grid;grid-template-columns:1fr 1.4fr;gap:16px;align-items:stretch}
+.wg-place-main{background:linear-gradient(135deg,#D02B2B 0%,#9E1F1F 100%);color:#fff;border-radius:12px;padding:18px 20px}
+.wg-place-main .muted{color:rgba(255,255,255,.8)}
+.wg-place-book{font-family:var(--font-en);font-size:30px;font-weight:800;letter-spacing:-.5px;margin:4px 0 2px}
+.wg-place-side{background:#FAFBFD;border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+@media(max-width:640px){.wg-place{grid-template-columns:1fr}}
 
 .level-badge{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:14px;color:#fff;font-weight:800;font-size:20px;font-family:var(--font-en)}
 .level-badge small{font-family:var(--font);font-weight:500;font-size:13px;opacity:.9}
@@ -1186,6 +1192,55 @@ function absIdx(level, pct, perfect){
 function gradeOf(pct){ return pct>=90?'A':pct>=80?'B':pct>=70?'C':pct>=60?'D':'E'; }
 const GRADE_COLOR = {A:'#2E9E6B',B:'#1C5FA6',C:'#B27A00',D:'#C2410C',E:'#6B7280'};
 function gradeBadge(pct, size=14){ const g=gradeOf(pct); return `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:${size*2}px;height:${size*2}px;padding:0 ${size*0.5}px;border-radius:${size*0.5}px;background:${GRADE_COLOR[g]};color:#fff;font-family:var(--font-en);font-weight:800;font-size:${size}px;line-height:1">${g}</span>`; }
+// ═══════════════════════ 윌그로우 배정 레벨 (Theme Bridge 교재 매핑) ═══════════════════════
+// 원칙: 시리즈 경계(Climber/Explorer/Navigator)는 '독해 수준'으로, 시리즈 안의 권은 '문법'으로 미세 조정.
+// 성취도평가의 절대평가 수준(초1~중2+)을 기준점으로 삼아 총점을 권 인덱스(0~27)로 보간한다.
+const WG_BOOKS = (()=>{ const o=[]; ['Climber','Explorer'].forEach(s=>['1A','1B','1C','1D','2A','2B','2C','2D'].forEach(b=>o.push(s+' '+b))); ['1A','1B','1C','1D','2A','2B','2C','2D','3A','3B','3C','3D'].forEach(b=>o.push('Navigator '+b)); return o; })();
+// 절대평가 수준(초1=0 … 중2+=8) ↔ 권 인덱스 기준점
+const WG_LEVEL_ANCHOR = {0:0, 1:2, 2:4, 3:6, 4:8, 5:11, 6:13, 7:17, 8:21};
+// 시험지별 총점 % → 권 인덱스 보간표 (absIdx 임계값과 동일한 구간)
+const WG_ANCHORS = {
+ 1:[[0,0],[35,2],[55,4],[75,6],[90,8],[100,9]],
+ 2:[[0,4],[35,6],[55,8],[75,11],[90,13],[100,15]],
+ 3:[[0,8],[45,11],[65,13],[85,17],[100,21]]
+};
+function wgInterp(level, pct){
+ const A = WG_ANCHORS[level]||WG_ANCHORS[2];
+ for(let i=0;i<A.length-1;i++){ const [p0,i0]=A[i],[p1,i1]=A[i+1]; if(pct<=p1) return i0+(i1-i0)*((pct-p0)/(p1-p0)); }
+ return A[A.length-1][1];
+}
+function wgSeries(idx){ return idx<8?'Climber':idx<16?'Explorer':'Navigator'; }
+function wgPlacement(a, d){
+ const L = d.level, total = a.total;
+ const r = a.dom.reading.pct, g = a.dom.grammar.pct, v = a.dom.vocab.pct;
+ const notes = [];
+ let idx = wgInterp(L, total);
+ if(L===3 && a.perfectAll){ idx = 22; notes.push('객관식 전부 정답 — 상한 측정 불가, Navigator 2C 이상 가능'); }
+ const base = Math.round(idx);
+ // 독해 게이트: 시리즈 경계는 독해로 판단
+ // (Test 3 독해 지문은 Navigator 수준이므로 Navigator 진입만 판단, Test 1·2 독해는 Explorer 진입 판단)
+ if(idx>=16 && r<60){ idx = Math.min(idx, 15); notes.push(`독해 ${r}% — Navigator 진입 전 Explorer 마무리 권장`); }
+ else if(L<=2 && idx>=8 && r<50){ idx = Math.min(idx, 7); notes.push(`독해 ${r}% — Explorer 진입 전 Climber 마무리 권장`); }
+ else if(L===3 && idx>=8 && r<40){ idx = Math.max(8, idx-2); notes.push(`독해 ${r}% — 독해 보강을 위해 2권 하향`); }
+ // 문법으로 시리즈 안에서 ±1권
+ const sLo = idx<8?0:idx<16?8:16, sHi = idx<8?7:idx<16?15:27;
+ if(g>=85 && r>=60){ idx = Math.min(sHi, idx+1); notes.push(`문법 ${g}% 우수 — 1권 상향`); }
+ else if(g<45){ idx = Math.max(sLo, idx-1); notes.push(`문법 ${g}% — 1권 하향`); }
+ // 어휘가 크게 뒤처지면 하향 경고만
+ if(v<40 && idx>=8) notes.push(`어휘 ${v}% — 배정 권의 어휘 보강 병행 필요`);
+ idx = Math.max(0, Math.min(WG_BOOKS.length-1, Math.round(idx)));
+ const frac = Math.abs(wgInterp(L,total) - Math.round(wgInterp(L,total)));
+ const borderline = frac>0.35 || notes.length>1;
+ return { idx, book: WG_BOOKS[idx], series: wgSeries(idx), lower: idx>0?WG_BOOKS[idx-1]:null, upper: idx<WG_BOOKS.length-1?WG_BOOKS[idx+1]:null, notes, borderline,
+  basis: `총점 ${total}점(${lvName(a.totalIdx)}) · 독해 ${r}% · 문법 ${g}% · 어휘 ${v}%` };
+}
+const WG_SERIES_DESC = { Climber:'초급 · 기초 회화·파닉스 (8권)', Explorer:'중급 · 문법·4기능 통합 (8권)', Navigator:'고급 · 교과형 읽기·쓰기 심화 (12권)' };
+function wgFinalBook(d, pl){ return (d.wgLevel && d.wgLevel.override) || pl.book; }
+async function setWgOverride(id, book){
+ await updateDoc(id, {wgLevel:{override: book||null, by:'teacher', at:new Date().toISOString()}});
+ toast(book ? `배정 레벨을 ${book}(으)로 조정했습니다.` : '자동 배정으로 되돌렸습니다.');
+ openReport(id);
+}
 function lvName(i){ return i<=5 ? `초등학교 ${i+1}학년 수준` : i===6 ? '중학교 1학년 수준' : i===7 ? '중학교 2학년 수준' : '중학교 2학년 이상 수준'; }
 function gradeIdx(g){ return Math.max(0, GRADES.indexOf(g)); }
 function vocabLevelBySize(n){ return n<250?'초등 1~2학년':n<450?'초등 3~4학년':n<800?'초등 5~6학년':n<1200?'중학교 1학년':n<1700?'중학교 2학년':'중학교 2학년 이상'; }
@@ -1328,12 +1383,13 @@ function renderResults(){
   <div class="stat"><div class="l">응시 학생 수</div><div class="v">${names.size}</div></div>
   ${[1,2,3].map(l=>`<div class="stat"><div class="l">${LEVELS[l].name} 응시</div><div class="v" style="color:${LEVELS[l].color}">${allDocs.filter(d=>d.level===l).length}</div></div>`).join('')}`;
  if(!rows.length){ $('results-table').innerHTML = `<tr><td class="empty">아직 응시 결과가 없습니다.</td></tr>`; return; }
- $('results-table').innerHTML = `<thead><tr><th>응시일</th><th>이름</th><th>학년</th><th>시험지</th><th>어휘</th><th>문법</th><th>독해</th><th>라이팅</th><th>총점</th><th>수준</th><th>자유작문</th><th></th></tr></thead><tbody>` +
+ $('results-table').innerHTML = `<thead><tr><th>응시일</th><th>이름</th><th>학년</th><th>시험지</th><th>어휘</th><th>문법</th><th>독해</th><th>라이팅</th><th>총점</th><th>수준</th><th>배정 레벨</th><th>자유작문</th><th></th></tr></thead><tbody>` +
   rows.map(d => { const a = analyze(d, [], true); const L = LEVELS[d.level];
    return `<tr><td>${d.student.date}</td><td><b>${esc(d.student.name)}</b>${(()=>{const h=studentHistory(d);return h.length>1?` <span class="chip gray" style="font-size:10px;padding:1px 6px">${h.findIndex(x=>x.id===d.id)+1}/${h.length}회</span>`:'';})()}<div class="muted" style="font-size:11px">${esc(d.student.school||'')}</div></td><td>${d.student.grade}</td>
     <td><span class="chip" style="background:${L.color}22;color:${L.color}">${L.name}</span></td>
     <td>${a.dom.vocab.pts}/24</td><td>${a.dom.grammar.pts}/24</td><td>${a.dom.reading.pts}/28</td><td>${a.dom.writing.pts}/24</td>
     <td><b>${a.total}</b></td><td style="font-size:12px">${lvName(a.totalIdx)}</td>
+    <td style="font-size:12px;white-space:nowrap">${(()=>{const pl=wgPlacement(a,d); const f=wgFinalBook(d,pl); return `<b>${esc(f)}</b>${d.wgLevel&&d.wgLevel.override?' <span class="chip amber" style="font-size:10px;padding:1px 6px">조정</span>':''}`;})()}</td>
     <td>${a.freeItem.graded ? `<span class="chip green">${d.free.score}/9</span>` : `<button class="btn sm ghost" onclick="openGrade('${d.id}')">채점</button>`}</td>
     <td style="white-space:nowrap"><button class="btn sm primary" onclick="openReport('${d.id}')">성적표</button> <button class="btn sm danger" onclick="if(confirm('삭제할까요?'))deleteDoc('${d.id}')">삭제</button></td></tr>`; }).join('') + '</tbody>';
 }
@@ -1519,6 +1575,30 @@ function openReport(id){
       <div><div class="l">어휘 수준<br>Vocabulary Level</div><div class="v blue" style="font-size:14px">${vocabLevelBySize(a.vocabSize)}</div></div>
      </div>
     </div>
+   </div>
+
+   <div class="rp-sec">
+    <h2>윌그로우 배정 레벨</h2>
+    ${(()=>{ const pl = wgPlacement(a, d); const fin = wgFinalBook(d, pl); const ov = d.wgLevel && d.wgLevel.override;
+      return `<div class="wg-place">
+       <div class="wg-place-main"><div class="muted" style="font-size:12px">Theme Bridge 커리큘럼 기준</div>
+        <div class="wg-place-book">${esc(fin)}</div>
+        <div class="muted" style="font-size:12px">${esc(WG_SERIES_DESC[fin.split(' ')[0]]||'')}</div>
+        ${ov ? `<div class="chip amber" style="margin-top:8px">강사 조정 (자동 배정: ${esc(pl.book)})</div>` : (pl.borderline ? `<div class="chip gray" style="margin-top:8px">경계 구간 — ${esc([pl.lower,pl.upper].filter(Boolean).join(' / '))} 도 검토</div>` : '')}
+       </div>
+       <div class="wg-place-side">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px">배정 근거</div>
+        <div style="font-size:13px;margin-bottom:8px">${esc(pl.basis)}</div>
+        ${pl.notes.length ? `<ul style="margin:0 0 0 16px;padding:0;font-size:12px;color:var(--text2);line-height:1.7">${pl.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>` : ''}
+        <div class="no-print" style="margin-top:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+         <span style="font-size:12px;color:var(--text2)">강사 조정</span>
+         <select id="wg-override" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px" onchange="setWgOverride('${d.id}', this.value)">
+          <option value="">자동 배정 (${esc(pl.book)})</option>
+          ${WG_BOOKS.map(b=>`<option value="${b}" ${ov===b?'selected':''}>${b}</option>`).join('')}
+         </select>
+        </div>
+       </div>
+      </div>`; })()}
    </div>
 
    <div class="rp-sec">
