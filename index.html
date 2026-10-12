@@ -1525,15 +1525,15 @@ input:focus,select:focus,textarea:focus,.fm-inp:focus{background:#fff!important;
       </select>
     </div>
     <div class="fm-row">
-      <label class="fm-label">학습목표 — Theme (Reading, Writing, Listening, Speaking)</label>
+      <label class="fm-label" id="l-goal-theme-label">학습목표 — Theme (Reading, Writing, Listening, Speaking)</label>
       <textarea class="comment-area" id="l-goal-theme" placeholder="예) Social, Science, Math의 다양한 주제로 지역사회와 환경, 물의 상태 변화 등 초등 6학년 교과연계 지문을 읽고 원인·결과 파악, 주제 이해, 세부사항 이해하기를 학습합니다." style="min-height:72px"></textarea>
     </div>
     <div class="fm-row">
-      <label class="fm-label">학습목표 — Language (문법)</label>
+      <label class="fm-label" id="l-goal-language-label">학습목표 — Language (문법)</label>
       <textarea class="comment-area" id="l-goal-language" placeholder="예) 등위접속사 and, but, or의 쓰임을 이해하고 각각의 다양한 의미를 구분합니다(중학교 1학년 과정)." style="min-height:72px"></textarea>
     </div>
     <div class="fm-row">
-      <label class="fm-label">학습목표 — Literacy (원서)</label>
+      <label class="fm-label" id="l-goal-literacy-label">학습목표 — Literacy (원서)</label>
       <textarea class="comment-area" id="l-goal-literacy" placeholder="예) "Desert Animals"를 읽고 사막 동물들의 생존 전략을 이해하고 생각을 확장합니다." style="min-height:72px"></textarea>
       <button class="btn bgh bsm" style="margin-top:6px" onclick="polishLectureGoal()">AI 다듬기</button>
     </div>
@@ -3534,7 +3534,8 @@ const LECTURE_MAP={
   },
   RC:  {
     'Theme Bridge Climber':['1A','1B','1C','1D','2A','2B','2C','2D'],
-    'Star':['1-1','1-2','1-3','1-4','1-5','2-1','2-2','2-3','2-4','2-5']
+    'Star':['1-1','1-2','1-3','1-4','1-5','2-1','2-2','2-3','2-4','2-5'],
+    'Galaxy':['1-1','1-2','1-3','1-4','1-5','2-1','2-2','2-3','2-4','2-5']
   },
   BC:  {'Theme Bridge Explorer':['1A','1B','1C','1D','2A','2B','2C','2D']},
   BF:  {'Theme Bridge Navigator':['1A','1B','1C','1D','2A','2B','2C','2D','3A','3B','3C','3D']},
@@ -3565,6 +3566,14 @@ function onProgramChange(keepBook){
   } else {
     bsel.innerHTML='<option value="">(교재명 없음)</option>';
   }
+  wgSyncGoalFormLabels();
+}
+/* 프로그램에 맞춰 학습목표 입력칸 라벨 갱신 */
+function wgSyncGoalFormLabels(){
+  const prog=(document.getElementById('l-program')||{}).value||'';
+  const L=wgGoalLabels(prog);
+  const ids=['l-goal-theme-label','l-goal-language-label','l-goal-literacy-label'];
+  ids.forEach((id,i)=>{const el=document.getElementById(id); if(el) el.textContent='학습목표 — '+L[i];});
 }
 
 let editingLectureId=null;
@@ -3660,9 +3669,9 @@ async function polishLectureGoal(){
   const book=document.getElementById('l-bookname').value;
   const context=[level,prog,book].filter(Boolean).join(' ');
   const fields=[
-    {id:'l-goal-theme', label:'Theme (Reading, Writing, Listening, Speaking)'},
-    {id:'l-goal-language', label:'Language (문법)'},
-    {id:'l-goal-literacy', label:'Literacy (원서)'},
+    {id:'l-goal-theme', label:wgGoalLabels(prog)[0]},
+    {id:'l-goal-language', label:wgGoalLabels(prog)[1]},
+    {id:'l-goal-literacy', label:wgGoalLabels(prog)[2]},
   ];
   const anyFilled=fields.some(f=>document.getElementById(f.id).value.trim());
   if(!anyFilled){toast('학습목표를 먼저 입력해 주세요');return;}
@@ -3700,9 +3709,9 @@ function showGoalPopup(lid){
   const hasGoal=l.goalTheme||l.goalLanguage||l.goalLiteracy;
   if(!hasGoal){content.innerHTML='<p style="color:var(--ink3)">(학습목표가 입력되지 않았어요)</p>';openModal('modal-goal');return;}
   content.innerHTML=[
-    l.goalTheme?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:900;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Theme (Reading, Writing, Listening, Speaking)</div><div style="font-size:13px;line-height:1.8;color:var(--ink2);white-space:pre-wrap">${l.goalTheme}</div></div>`:'',
-    l.goalLanguage?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:900;color:var(--grn);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Language (문법)</div><div style="font-size:13px;line-height:1.8;color:var(--ink2);white-space:pre-wrap">${l.goalLanguage}</div></div>`:'',
-    l.goalLiteracy?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:900;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Literacy (원서)</div><div style="font-size:13px;line-height:1.8;color:var(--ink2);white-space:pre-wrap">${l.goalLiteracy}</div></div>`:'',
+    l.goalTheme?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:900;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${wgGoalLabels(l)[0]}</div><div style="font-size:13px;line-height:1.8;color:var(--ink2);white-space:pre-wrap">${l.goalTheme}</div></div>`:'',
+    l.goalLanguage?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:900;color:var(--grn);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${wgGoalLabels(l)[1]}</div><div style="font-size:13px;line-height:1.8;color:var(--ink2);white-space:pre-wrap">${l.goalLanguage}</div></div>`:'',
+    l.goalLiteracy?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:900;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${wgGoalLabels(l)[2]}</div><div style="font-size:13px;line-height:1.8;color:var(--ink2);white-space:pre-wrap">${l.goalLiteracy}</div></div>`:'',
   ].join('');
   openModal('modal-goal');
 }
@@ -4153,14 +4162,21 @@ async function polishManageComment(){
 
 /* ══ GRADE REPORT POPUP ══ */
 /* ── 학습목표 섹션 렌더러 (강의관리에서 입력한 내용만 표시) ── */
+/* ── 학습목표 라벨 (Star·Galaxy 계열은 Playhouse / Talk Time / Story Club) ── */
+const WG_GOAL_LABELS_DEFAULT=['Theme (Reading, Writing, Listening, Speaking)','Language (문법)','Literacy (원서)'];
+const WG_GOAL_LABELS_LJ=['Playhouse','Talk Time','Story Club'];
+function wgGoalLabels(x){
+  const prog=(typeof x==='string')?x:((x&&(x.program||x.bookname))||'');
+  return /^(star|galaxy)\b/i.test(String(prog).trim())?WG_GOAL_LABELS_LJ:WG_GOAL_LABELS_DEFAULT;
+}
 function renderGoalSection(lec){
   if(!lec) return '';
   const hasGoal=lec.goalTheme||lec.goalLanguage||lec.goalLiteracy;
   if(!hasGoal) return '';
   const sections=[
-    {label:'Theme (Reading, Writing, Listening, Speaking)', value:lec.goalTheme, color:'var(--red)', bg:'#fff5f5'},
-    {label:'Language (문법)', value:lec.goalLanguage, color:'var(--grn)', bg:'#f4fff0'},
-    {label:'Literacy (원서)', value:lec.goalLiteracy, color:'#7c3aed', bg:'#f5f3ff'},
+    {label:wgGoalLabels(lec)[0], value:lec.goalTheme, color:'var(--red)', bg:'#fff5f5'},
+    {label:wgGoalLabels(lec)[1], value:lec.goalLanguage, color:'var(--grn)', bg:'#f4fff0'},
+    {label:wgGoalLabels(lec)[2], value:lec.goalLiteracy, color:'#7c3aed', bg:'#f5f3ff'},
   ].filter(s=>s.value?.trim());
   return `<div style="margin-bottom:18px">
     <div style="font-size:11px;font-weight:700;color:var(--ink3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px">학습목표</div>
@@ -4445,9 +4461,9 @@ window.onload = function(){
 function buildPrintGoalSection(lec){
   if(!lec) return '';
   const sections=[
-    {label:'Theme (Reading, Writing, Listening, Speaking)', value:lec.goalTheme, color:'#E8000D', bg:'#fff5f5'},
-    {label:'Language (문법)', value:lec.goalLanguage, color:'#16a34a', bg:'#f0ffe8'},
-    {label:'Literacy (원서)', value:lec.goalLiteracy, color:'#7c3aed', bg:'#f5f3ff'},
+    {label:wgGoalLabels(lec)[0], value:lec.goalTheme, color:'#E8000D', bg:'#fff5f5'},
+    {label:wgGoalLabels(lec)[1], value:lec.goalLanguage, color:'#16a34a', bg:'#f0ffe8'},
+    {label:wgGoalLabels(lec)[2], value:lec.goalLiteracy, color:'#7c3aed', bg:'#f5f3ff'},
   ].filter(s=>s.value?.trim());
   if(!sections.length) return '';
   return `<div class="no-break" style="margin-bottom:20px">
