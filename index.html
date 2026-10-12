@@ -1368,6 +1368,23 @@ input:focus,select:focus,textarea:focus,.fm-inp:focus{background:#fff!important;
     </div>
   </div>
 
+  <!-- AI 다듬기 설정 -->
+  <div style="margin-bottom:28px">
+    <div class="pg-hd" style="margin-bottom:12px">
+      <div class="pg-title">🤖 AI 다듬기 설정</div>
+    </div>
+    <div class="notice" style="margin-bottom:14px">💡 코멘트·학습목표 "AI 다듬기" 기능이 사용할 중계 서버 주소예요. 설치 안내에서 받은 주소를 붙여넣고 저장한 뒤 연결 테스트를 눌러 주세요.</div>
+    <div style="display:flex;gap:8px;max-width:640px;flex-wrap:wrap">
+      <input id="ai-endpoint" type="text" placeholder="https://xxxx.workers.dev"
+        style="flex:1;min-width:260px;font-family:inherit;font-size:13px;padding:8px;border:1px solid var(--line)">
+      <button onclick="saveAiEndpoint()"
+        style="padding:8px 16px;background:var(--red);color:#fff;border:none;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">저장</button>
+      <button onclick="testAiEndpoint()"
+        style="padding:8px 16px;background:#fff;border:2px solid var(--line);color:var(--ink);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">연결 테스트</button>
+    </div>
+    <div id="ai-endpoint-result" style="margin-top:10px;font-size:12px;color:var(--ink3)"></div>
+  </div>
+
   <!-- 데이터 내보내기 / 가져오기 -->
   <div style="margin-bottom:28px">
     <div class="pg-hd" style="margin-bottom:12px">
@@ -1659,7 +1676,8 @@ const WG_FB_CONFIG = {
 const WG_FB_KEYS = [
   'wg-students','wg-openedclasses','wg-att','wg-bochu','wg-bochu-done',
   'wg-stamps-v2','wg-lectures','wg-grades','wg-teachers','wg-deleted-classes',
-  'wg-cls','wg-books','wg-clsnames','wg-last-backup','wg-consult','wg-newconsult'
+  'wg-cls','wg-books','wg-clsnames','wg-last-backup','wg-consult','wg-newconsult',
+  'wg-ai-endpoint'
 ];
 
 let _wgDB = null;
@@ -2495,10 +2513,8 @@ ${natContents.length?natContents.join('\n---\n'):'(기록 없음)'}
 
   let krSummary='', natSummary='';
   try{
-    const r1=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:sumPrompt}]})});
-    const d1=await r1.json();
-    const raw=(d1.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim();
+    const t1=await wgAiComplete(sumPrompt,600);
+    const raw=t1.replace(/```json|```/g,'').trim();
     const parsed=JSON.parse(raw);
     krSummary=parsed.kr||''; natSummary=parsed.nat||'';
   }catch{
@@ -2529,10 +2545,8 @@ ${teacherMemoForAI?`선생님 추가 메모 (반드시 코멘트에 자연스럽
 
   let comment='';
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1200,messages:[{role:'user',content:p}]})});
-    const d=await r.json();comment=d.content?.[0]?.text||'코멘트를 생성하지 못했습니다.';
-  }catch{comment='코멘트 생성 중 오류가 발생했습니다.';}
+    comment=await wgAiComplete(p,1200);
+  }catch(e){ comment=''; wgAiToastError(e); }
 
   // Generate next-book preview summary (Final Test only)
   let nextBookSummary='';
@@ -2546,10 +2560,7 @@ ${sampleUnits.map(u=>`${u.unit}: ${u.content}`).join('\n')}
 
 규칙: 1.교재명이나 Theme 번호 같은 딱딱한 용어 나열 대신 무엇을 배우게 될지 자연스럽게 설명 2.기대감을 주는 톤이되 과장된 감탄사는 피할 것 3.2~3문장 4.본문만 출력`;
     try{
-      const r2=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:500,messages:[{role:'user',content:previewPrompt}]})});
-      const d2=await r2.json();
-      nextBookSummary=d2.content?.[0]?.text||'';
+      nextBookSummary=await wgAiComplete(previewPrompt,500);
     }catch{nextBookSummary='';}
   }
 
@@ -2689,6 +2700,51 @@ function copyKakaoText(){
 }
 
 /* ── 선생님 메모 AI 다듬기 ── */
+/* ══════ AI 다듬기 — 중계 서버 호출 ══════ */
+/* API 키는 공개 사이트에 둘 수 없으므로 Cloudflare Worker 중계 서버를 거칩니다. */
+function wgAiEndpoint(){ return (localStorage.getItem('wg-ai-endpoint')||'').trim(); }
+async function wgAiComplete(prompt, maxTokens){
+  const ep = wgAiEndpoint();
+  if(!ep){ const e=new Error('AI 중계 서버가 설정되지 않았어요'); e.code='AI_NOT_CONFIGURED'; throw e; }
+  const r = await fetch(ep, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ max_tokens: maxTokens||600, messages:[{role:'user',content:prompt}] })
+  });
+  const raw = await r.text();
+  let d=null; try{ d=JSON.parse(raw); }catch{}
+  if(!r.ok){
+    const msg = (d && (d.error?.message || d.error)) || raw.slice(0,200) || ('HTTP '+r.status);
+    const e=new Error(String(msg)); e.code='AI_HTTP_'+r.status; throw e;
+  }
+  const text = d && d.content && d.content[0] && d.content[0].text;
+  if(!text){ const e=new Error('빈 응답'); e.code='AI_EMPTY'; throw e; }
+  return text.trim();
+}
+function wgAiToastError(err){
+  if(err && err.code==='AI_NOT_CONFIGURED'){ toast('설정 → AI 다듬기에서 서버 주소를 먼저 등록해 주세요'); return; }
+  toast('AI 다듬기에 실패했어요 (원래 내용은 그대로 두었어요)');
+}
+function saveAiEndpoint(){
+  const v=(document.getElementById('ai-endpoint').value||'').trim();
+  if(v && !/^https:\/\//i.test(v)){ toast('https:// 로 시작하는 주소를 입력해 주세요'); return; }
+  localStorage.setItem('wg-ai-endpoint', v);
+  document.getElementById('ai-endpoint-result').textContent = v ? '저장했어요. 연결 테스트를 눌러 확인해 보세요.' : '주소를 비웠어요. AI 다듬기 기능이 꺼집니다.';
+  toast('저장했어요');
+}
+async function testAiEndpoint(){
+  const out=document.getElementById('ai-endpoint-result');
+  out.style.color='var(--ink3)'; out.textContent='테스트 중...';
+  try{
+    const t=await wgAiComplete('"연결 성공"이라고만 답해 주세요.', 30);
+    out.style.color='#16a34a'; out.textContent='✅ 연결 성공 — 응답: '+t.slice(0,40);
+  }catch(e){
+    out.style.color='#dc2626'; out.textContent='❌ 실패 — '+(e.message||e);
+  }
+}
+function loadAiEndpointUI(){
+  const el=document.getElementById('ai-endpoint'); if(el) el.value=wgAiEndpoint();
+}
+
 async function polishMemo(){
   const memo=document.getElementById('r-teacher-memo').value.trim();
   if(!memo){toast('메모를 먼저 입력해 주세요');return}
@@ -2713,12 +2769,8 @@ async function polishMemo(){
 6. 코멘트 본문만 출력`;
 
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:p}]})});
-    const d=await r.json();
-    out.value=d.content?.[0]?.text||'변환에 실패했어요.';
-  }catch{out.value='오류가 발생했어요. 다시 시도해 주세요.';}
+    out.value=await wgAiComplete(p,600);
+  }catch(e){ out.value=memo; area.style.display='none'; wgAiToastError(e); }
 }
 
 /* ══════ STAMP ══════ */
@@ -3193,7 +3245,7 @@ function goSection(sec){
     openedClasses = JSON.parse(localStorage.getItem('wg-openedclasses')||'[]');
     renderAtt();
   }
-  if(sec==='settings')renderClsSettings();
+  if(sec==='settings'){renderClsSettings(); if(typeof loadAiEndpointUI==='function') loadAiEndpointUI();}
   if(sec==='teacheropen')renderTeacherOpen();
 }
 
@@ -3691,12 +3743,8 @@ async function polishLectureGoal(){
 
 규칙: 1.내용 절대 추가/삭제 금지 2.AI 느낌 없이 자연스럽게 3.오타·띄어쓰기 수정 4.본문만 출력`;
     try{
-      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:p}]})});
-      if(!r.ok){el.value=orig;}
-      else{const d=await r.json();el.value=d.content?.[0]?.text?.trim()||orig;}
-    }catch{el.value=orig;}
+      el.value=await wgAiComplete(p,600);
+    }catch(e){ el.value=orig; el.disabled=false; wgAiToastError(e); return; }
     finally{el.disabled=false;}
   }
   toast('✅ 학습목표가 다듬어졌어요!');
@@ -4155,9 +4203,8 @@ async function polishManageComment(){
   el.value='AI가 다듬는 중...';
   const p=`윌그로우어학원 영어 선생님이 학부모님께 보내는 코멘트를 작성해 주세요.\n학생 이름(이름만): ${givenName}\n선생님 메모: ${memo}\n규칙: 1.이름만 사용(성 절대 금지) 2.자연스러운 구어체 3.AI티 나지 않게 4.3~4문장 5.본문만 출력`;
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:p}]})});
-    const d=await r.json();el.value=d.content?.[0]?.text||'변환 실패';
-  }catch{el.value=memo;toast('오류가 발생했어요');}
+    el.value=await wgAiComplete(p,600);
+  }catch(e){ el.value=memo; wgAiToastError(e); }
 }
 
 /* ══ GRADE REPORT POPUP ══ */
