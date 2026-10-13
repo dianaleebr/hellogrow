@@ -1516,7 +1516,7 @@ function openReport(id){
       <div><div class="l">문법 수준<br>Grammar Level</div><div class="v blue" style="font-size:14px">${lvName(a.dom.grammar.idx)}</div></div>
       <div><div class="l">교육과정 필수 어휘<br>초등 800개 기준</div><div class="v blue">${a.elemPct!=null?`약 ${a.elemPct}%`:'—'}<small>${a.elemPct!=null?'알고 있음':'중등 레벨은 초등 어휘 완료로 간주'}</small></div></div>
       <div><div class="l">추정 어휘량<br>Vocabulary Size</div><div class="v blue">약 ${a.vocabSize.toLocaleString()}<small>단어</small></div></div>
-      <div><div class="l">어휘 수준<br>Vocabulary Level</div><div class="v blue" style="font-size:14px">${vocabLevelBySize(a.vocabSize)}</div></div>
+      <div><div class="l">어휘 수준<br>Vocabulary Level</div><div class="v blue" style="font-size:14px">${lvName(a.dom.vocab.idx)}</div></div>
      </div>
     </div>
    </div>
@@ -1538,7 +1538,7 @@ function openReport(id){
     <h3>어휘 Vocabulary</h3>
     <div class="metric-grid">
      <div class="metric"><div class="l">Vocabulary Size</div><div class="v">약 ${a.vocabSize.toLocaleString()}<small>단어 수준</small></div></div>
-     <div class="metric"><div class="l">Vocabulary 수준</div><div class="v"><span class="ko">${vocabLevelBySize(a.vocabSize)}</span></div></div>
+     <div class="metric"><div class="l">Vocabulary 수준</div><div class="v"><span class="ko">${lvName(a.dom.vocab.idx)}</span></div></div>
      <div class="metric"><div class="l">교육부 지정 필수 어휘<br>초등 800개 중</div><div class="v">${a.elemPct!=null?`약 ${a.elemPct}%`:'—'}<small>${a.elemPct!=null?'알고 있음':'중등 레벨은 초등 어휘 완료로 간주'}</small></div></div>
      <div class="metric"><div class="l">교육부 지정 필수 어휘<br>중학 1,000개 중</div><div class="v">${a.midPct!=null?`약 ${a.midPct}%`:'—'}<small>${a.midPct!=null?'알고 있음':'중등 레벨 응시 시 측정'}</small></div></div>
      <div class="metric"><div class="l">수능 빈출 어휘와 겹치는<br>단어 기초 확인</div><div class="v">${csatVText}</div></div>
