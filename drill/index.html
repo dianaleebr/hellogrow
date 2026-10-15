@@ -450,6 +450,33 @@ kbd{
   .level-card{min-height:120px; padding:14px}
 }
 @media print{ .controls,.topbar,.drill-top{display:none} }
+/* ===== 교재 드릴 ===== */
+.mode-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0 26px}
+.mode-card{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;padding:16px 18px;border:2px solid var(--border,#e5e7eb);border-radius:14px;background:var(--card,#fff);font-family:inherit;cursor:pointer;color:inherit}
+.mode-card b{font-size:16px}
+.mode-card span{font-size:12.5px;opacity:.65;line-height:1.45}
+.mode-card.on{border-color:#E8000D;background:rgba(232,0,13,.05);cursor:default}
+.mode-card:not(.on):hover{border-color:#9ca3af}
+.bk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.bk-card{padding:14px 10px;border:2px solid var(--border,#e5e7eb);border-radius:12px;background:var(--card,#fff);font-family:inherit;cursor:pointer;color:inherit;text-align:center}
+.bk-card b{display:block;font-size:15px}
+.bk-card span{display:block;font-size:11px;opacity:.6;margin-top:3px}
+.bk-card[aria-pressed="true"]{border-color:#E8000D;background:rgba(232,0,13,.07)}
+.bk-card.ex[aria-pressed="true"]{border-color:#1C5FA6;background:rgba(28,95,166,.07)}
+.bk-lessons{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.bk-les{display:flex;align-items:center;gap:10px;padding:11px 13px;border:2px solid var(--border,#e5e7eb);border-radius:11px;background:var(--card,#fff);font-family:inherit;cursor:pointer;color:inherit;text-align:left}
+.bk-les[aria-pressed="true"]{border-color:#E8000D;background:rgba(232,0,13,.06)}
+.bk-les .no{flex:0 0 38px;font-weight:800;font-size:13px;opacity:.75}
+.bk-les .ti{flex:1;min-width:0}
+.bk-les .ti b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-les .ti span{display:block;font-size:11px;opacity:.6;margin-top:2px}
+.bk-les .dn{flex:0 0 auto;color:#16a34a;font-weight:800}
+.bd-hint{margin-top:14px;padding:10px 14px;border-left:4px solid #d97706;background:rgba(217,119,6,.08);border-radius:0 8px 8px 0;font-size:13px;line-height:1.6;text-align:left}
+.bd-blank{color:#E8000D;font-weight:900;border-bottom:4px solid #fbbf24;padding:0 2px}
+.bd-slash{color:#1C5FA6;font-weight:900;padding:0 4px}
+.bd-word{font-size:clamp(34px,9vw,64px);font-weight:800;letter-spacing:-.5px}
+.bd-note{margin:14px 0 0;padding:10px 14px;border-left:4px solid #6b7280;background:rgba(107,114,128,.08);border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.6;text-align:left;opacity:.9}
+@media (max-width:720px){ .mode-row{grid-template-columns:1fr} .bk-grid{grid-template-columns:repeat(2,1fr)} .bk-lessons{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -468,6 +495,17 @@ kbd{
   <main class="wrap">
     <h1 class="title">Speaking Drill</h1>
     <p class="sub">급수와 드릴 방향을 고르고 시작하세요. 화면의 문장을 보고 소리 내어 번역하는 구두 드릴입니다.</p>
+
+    <div class="mode-row">
+      <div class="mode-card on" aria-current="true">
+        <b>급수로 연습</b>
+        <span>1급~6급 · 한↔영 번역 드릴</span>
+      </div>
+      <button class="mode-card" id="goBookMode">
+        <b>교재로 연습</b>
+        <span>Climber · Explorer 레슨별 핵심 문장</span>
+      </button>
+    </div>
 
     <div class="section" id="classSection">
       <h2><span class="step">0</span> 강사 선택 <span class="en">/ Teacher</span></h2>
@@ -585,6 +623,69 @@ kbd{
       <button class="btn btn-ghost" id="prevBtn" aria-label="이전 문장 (단축키 왼쪽 화살표)">← 이전</button>
       <button class="btn btn-ghost" id="nextBtn" aria-label="다음 문장 (단축키 스페이스 또는 오른쪽 화살표)">다음 →</button>
       <button class="btn btn-ghost" id="tipBtn" aria-pressed="true" aria-label="교사 팁 표시 켜고 끄기 (단축키 T)">💡 팁</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 교재 선택 화면 ===================== -->
+<section id="screen-book" hidden>
+  <header class="topbar">
+    <div class="brand"><span class="brand-text">Speaking Drill</span></div>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="bkBack" aria-label="급수 드릴로 돌아가기" title="돌아가기">←</button>
+  </header>
+
+  <main class="wrap">
+    <h1 class="title">교재로 연습</h1>
+    <p class="sub">교재와 레슨을 고르면 그 레슨의 핵심 문장과 단어를 하나씩 띄워 줍니다.</p>
+
+    <div class="section">
+      <h2><span class="step">1</span> 교재 선택 <span class="en">/ Book</span></h2>
+      <div class="bk-grid" id="bkGrid" role="group" aria-label="교재 선택"></div>
+    </div>
+
+    <div class="section" id="bkLessonSec" hidden>
+      <h2><span class="step">2</span> 레슨 선택 <span class="en" id="bkBookLabel"></span></h2>
+      <div class="bk-lessons" id="bkLessons" role="group" aria-label="레슨 선택"></div>
+      <p class="hint" style="margin-top:12px">복습 레슨(7·14)은 교재에 핵심 문장이 따로 없어 목록에 없습니다.</p>
+    </div>
+
+    <div class="section" id="bkPartSec" hidden>
+      <h2><span class="step">3</span> 무엇을 연습할까요?</h2>
+      <div class="opt-row" id="bkPartRow" role="radiogroup" aria-label="연습 범위"></div>
+      <div id="bkNote"></div>
+      <div style="margin-top:20px"><button class="btn btn-gold btn-lg" id="bkStart">▶ 시작하기</button></div>
+    </div>
+  </main>
+</section>
+
+<!-- ===================== 교재 드릴 화면 ===================== -->
+<section id="screen-bookdrill" hidden>
+  <header class="drill-top">
+    <span class="badge" id="bdBook">교재</span>
+    <span class="badge dir" id="bdKind">문장</span>
+    <button class="counter" id="bdCounter" aria-label="진행 상황">1 / 1</button>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="bdStar" aria-pressed="false" aria-label="다시 볼 문장으로 표시" title="다시 볼 문장 (S)">☆</button>
+    <button class="icon-btn" id="bdExit" aria-label="나가기" title="나가기 (Esc)">✕</button>
+  </header>
+  <div class="progress-wrap">
+    <div class="progress" role="progressbar" aria-label="진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bdProg"><i></i></div>
+  </div>
+
+  <div class="stage">
+    <div class="q-card">
+      <p class="q-label" id="bdLabel"></p>
+      <p class="q-text" id="bdText" aria-live="polite"></p>
+      <div class="bd-hint" id="bdHint" hidden></div>
+      <div class="bd-note" id="bdNote" hidden></div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-primary speak-btn" id="bdSpeak" aria-label="문장 듣기 (단축키 R)">
+        <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span> 듣기
+      </button>
+      <button class="btn btn-ghost" id="bdPrev" aria-label="이전 (왼쪽 화살표)">← 이전</button>
+      <button class="btn btn-ghost grow" id="bdNext" aria-label="다음 (스페이스 또는 오른쪽 화살표)">다음 →</button>
     </div>
   </div>
 </section>
@@ -1938,7 +2039,232 @@ document.addEventListener("keydown", (e)=>{
 }, false);
 
 window.addEventListener("beforeunload", ()=> stopSpeak());
+
+/* 교재 드릴(아래 별도 스크립트)에서 쓸 수 있도록 내부 기능 일부를 공개합니다 */
+window.__drill = { screens, show, speak, stopSpeak, state, TTS, $, $$ };
 })();
 </script>
+
+<!-- 교재별 레슨 데이터 -->
+<script src="lesson-data.js"></script>
+<script>
+/* ═════════ 교재 드릴 (Climber / Explorer 레슨별) ═════════
+   기존 급수 드릴 코드는 건드리지 않고 별도로 동작합니다. */
+(function(){
+  const H = window.__drill;
+  if (!window.LESSON_DATA || !H) return;
+  const $ = H.$, $$ = H.$$, screens = H.screens, show = H.show;
+  const speak = H.speak, stopSpeak = H.stopSpeak, state = H.state, TTS = H.TTS;
+  const D = window.LESSON_DATA;
+  const PROG_KEY = "wgDrill.book.progress.v1";
+
+  screens.book = $("#screen-book");
+  screens.bookdrill = $("#screen-bookdrill");
+
+  const bk = { bookId:null, lessonNo:null, part:"all", items:[], idx:0, starred:new Set() };
+
+  /* ---------- 진도 저장 (반별) ---------- */
+  function progKey(){ return state.classId || "_"; }
+  function loadProg(){
+    try{ return JSON.parse(localStorage.getItem(PROG_KEY)||"{}"); }catch(e){ return {}; }
+  }
+  function saveProg(o){ try{ localStorage.setItem(PROG_KEY, JSON.stringify(o)); }catch(e){} }
+  function markDone(bookId, no){
+    const all = loadProg(); const k = progKey();
+    if(!all[k]) all[k] = {};
+    all[k][bookId+":"+no] = 1;
+    saveProg(all);
+  }
+  function isDone(bookId, no){
+    const all = loadProg(); return !!((all[progKey()]||{})[bookId+":"+no]);
+  }
+
+  /* ---------- 교재 목록 ---------- */
+  function renderBooks(){
+    const g = $("#bkGrid");
+    g.innerHTML = D.books.map(b=>{
+      const done = b.lessons.filter(l=>isDone(b.id,l.no)).length;
+      return '<button class="bk-card'+(b.series==="Explorer"?" ex":"")+'" data-book="'+b.id+'" aria-pressed="false">'
+        + '<b>'+b.label+'</b><span>'+b.lessons.length+'개 레슨'+(done?" · "+done+" 완료":"")+'</span></button>';
+    }).join("");
+    g.querySelectorAll(".bk-card").forEach(el=>{
+      el.addEventListener("click", ()=> selectBook(el.dataset.book));
+    });
+  }
+
+  function selectBook(id){
+    bk.bookId = id; bk.lessonNo = null;
+    $$("#bkGrid .bk-card").forEach(el=> el.setAttribute("aria-pressed", el.dataset.book===id ? "true":"false"));
+    const b = D.books.find(x=>x.id===id);
+    $("#bkBookLabel").textContent = "/ " + b.label;
+    renderLessons(b);
+    $("#bkLessonSec").hidden = false;
+    $("#bkPartSec").hidden = true;
+    $("#bkLessonSec").scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+
+  function renderLessons(b){
+    $("#bkLessons").innerHTML = b.lessons.map(l=>{
+      const done = isDone(b.id, l.no);
+      return '<button class="bk-les" data-no="'+l.no+'" aria-pressed="false">'
+        + '<span class="no">L'+l.no+'</span>'
+        + '<span class="ti"><b>'+esc(l.title)+'</b><span>p.'+l.pages+' · 문장 '+l.cards.length+' · 단어 '+l.words.length+'</span></span>'
+        + (done?'<span class="dn">✓</span>':'')
+        + '</button>';
+    }).join("");
+    $$("#bkLessons .bk-les").forEach(el=>{
+      el.addEventListener("click", ()=> selectLesson(parseInt(el.dataset.no,10)));
+    });
+  }
+
+  function curLesson(){
+    const b = D.books.find(x=>x.id===bk.bookId);
+    return b ? b.lessons.find(l=>l.no===bk.lessonNo) : null;
+  }
+
+  function selectLesson(no){
+    bk.lessonNo = no;
+    $$("#bkLessons .bk-les").forEach(el=> el.setAttribute("aria-pressed", parseInt(el.dataset.no,10)===no ? "true":"false"));
+    const l = curLesson();
+    $("#bkPartRow").innerHTML =
+        '<button class="chip" data-part="cards" aria-checked="false" role="radio">핵심 문장 '+l.cards.length+'</button>'
+      + '<button class="chip" data-part="words" aria-checked="false" role="radio">단어 '+l.words.length+'</button>'
+      + '<button class="chip" data-part="all" aria-checked="true" role="radio">전체 '+(l.cards.length+l.words.length)+'</button>';
+    bk.part = "all";
+    $$("#bkPartRow .chip").forEach(el=>{
+      el.addEventListener("click", ()=>{
+        bk.part = el.dataset.part;
+        $$("#bkPartRow .chip").forEach(x=> x.setAttribute("aria-checked", x===el ? "true":"false"));
+      });
+    });
+    const notes = [];
+    if (l.notes && l.notes.length) notes.push("<b>문법 메모</b><br>" + l.notes.map(esc).join(" · "));
+    if (l.note) notes.push("<b>교사 안내</b><br>" + esc(l.note));
+    $("#bkNote").innerHTML = notes.length ? '<div class="bd-note">'+notes.join("<br><br>")+'</div>' : "";
+    $("#bkPartSec").hidden = false;
+    $("#bkPartSec").scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+
+  function esc(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  /* ---------- 드릴 ---------- */
+  const KIND_LABEL = {
+    pattern: "오늘의 문형 / Today's pattern",
+    qa:      "묻고 답하기 / Ask and answer",
+    blank:   "빈칸 채워 말하기 / Your own answer",
+    choice:  "골라 말하기 / Choose one",
+    write:   "문장 말하기 / Say the sentence",
+    word:    "단어 / Word"
+  };
+  const GROUP_LABEL = { vocabulary:"Vocabulary", phonics:"Phonics", intro:"Introduction", expand:"Expand" };
+
+  function buildItems(){
+    const l = curLesson(); if(!l) return [];
+    const out = [];
+    if (bk.part !== "words") l.cards.forEach(c=> out.push(Object.assign({type:"card"}, c)));
+    if (bk.part !== "cards") l.words.forEach(w=> out.push({type:"word", t:w.w, g:w.g, k:"word"}));
+    return out;
+  }
+
+  function startBookDrill(){
+    bk.items = buildItems();
+    if (!bk.items.length){ alert("이 레슨에는 연습할 내용이 없어요."); return; }
+    bk.idx = 0; bk.starred = new Set();
+    const b = D.books.find(x=>x.id===bk.bookId); const l = curLesson();
+    $("#bdBook").textContent = b.label + " · L" + l.no;
+    show("bookdrill");
+    paintCard();
+  }
+
+  function renderText(it){
+    let t = esc(it.t);
+    if (it.b) t = t.replace(/___/g, '<span class="bd-blank">______</span>');
+    if (it.c) t = t.replace(/ \/ /g, ' <span class="bd-slash">/</span> ');
+    return t;
+  }
+
+  function paintCard(){
+    const it = bk.items[bk.idx]; if(!it) return;
+    const l = curLesson();
+    $("#bdKind").textContent = it.type==="word" ? (GROUP_LABEL[it.g]||"Word") : (it.q ? "질문" : "문장");
+    $("#bdCounter").textContent = (bk.idx+1) + " / " + bk.items.length;
+    $("#bdLabel").textContent = KIND_LABEL[it.k] || "";
+    const txt = $("#bdText");
+    if (it.type==="word"){
+      txt.className = "q-text bd-word";
+      txt.textContent = it.t;
+    } else {
+      txt.className = "q-text";
+      txt.innerHTML = renderText(it);
+    }
+    const hints = [];
+    if (it.b) hints.push("빈칸은 학생이 <b>자기 이야기로</b> 채워 말합니다.");
+    if (it.c) hints.push("슬래시(/)로 나뉜 말 중 <b>하나를 골라</b> 말합니다.");
+    const h = $("#bdHint");
+    h.hidden = !hints.length; h.innerHTML = hints.join("<br>");
+    const n = $("#bdNote");
+    const notes = [];
+    if (l.notes && l.notes.length && it.type!=="word") notes.push(l.notes.map(esc).join(" · "));
+    if (l.note && it.s && /^writing/.test(it.s)) notes.push(esc(l.note));
+    n.hidden = !notes.length; n.innerHTML = notes.join("<br>");
+    $("#bdStar").textContent = bk.starred.has(bk.idx) ? "★" : "☆";
+    $("#bdStar").setAttribute("aria-pressed", bk.starred.has(bk.idx) ? "true":"false");
+    const pct = Math.round((bk.idx+1)/bk.items.length*100);
+    const pb = $("#bdProg"); pb.setAttribute("aria-valuenow", String(pct));
+    const fill = pb.querySelector("i"); if (fill) fill.style.width = pct + "%";
+    $("#bdPrev").disabled = bk.idx===0;
+    $("#bdNext").textContent = bk.idx===bk.items.length-1 ? "완료 ✓" : "다음 →";
+  }
+
+  function goNext(){
+    if (bk.idx < bk.items.length-1){ bk.idx++; paintCard(); }
+    else { markDone(bk.bookId, bk.lessonNo); exitDrill(); }
+  }
+  function goPrev(){ if (bk.idx>0){ bk.idx--; paintCard(); } }
+  function sayIt(){
+    const it = bk.items[bk.idx]; if(!it) return;
+    speak(it.t.replace(/___/g," blank "), TTS.langEn, $("#bdSpeak"));
+  }
+  function exitDrill(){
+    stopSpeak();
+    const b = D.books.find(x=>x.id===bk.bookId);
+    renderBooks();
+    $$("#bkGrid .bk-card").forEach(el=> el.setAttribute("aria-pressed", el.dataset.book===bk.bookId ? "true":"false"));
+    if (b) renderLessons(b);
+    $$("#bkLessons .bk-les").forEach(el=> el.setAttribute("aria-pressed", parseInt(el.dataset.no,10)===bk.lessonNo ? "true":"false"));
+    show("book");
+  }
+
+  /* ---------- 이벤트 ---------- */
+  $("#goBookMode").addEventListener("click", ()=>{ renderBooks(); show("book"); });
+  $("#bkBack").addEventListener("click", ()=> show("start"));
+  $("#bkStart").addEventListener("click", startBookDrill);
+  $("#bdNext").addEventListener("click", goNext);
+  $("#bdPrev").addEventListener("click", goPrev);
+  $("#bdSpeak").addEventListener("click", sayIt);
+  $("#bdExit").addEventListener("click", exitDrill);
+  $("#bdStar").addEventListener("click", ()=>{
+    if (bk.starred.has(bk.idx)) bk.starred.delete(bk.idx); else bk.starred.add(bk.idx);
+    paintCard();
+  });
+  $("#bdCounter").addEventListener("click", ()=>{
+    const v = prompt("몇 번으로 갈까요? (1 ~ " + bk.items.length + ")", String(bk.idx+1));
+    const n = parseInt(v,10);
+    if (n>=1 && n<=bk.items.length){ bk.idx = n-1; paintCard(); }
+  });
+
+  document.addEventListener("keydown", (e)=>{
+    if (screens.bookdrill.hidden) return;
+    const tag = (e.target && e.target.tagName) || "";
+    if (tag==="INPUT" || tag==="TEXTAREA") return;
+    if (e.key==="ArrowRight" || e.key===" "){ e.preventDefault(); goNext(); }
+    else if (e.key==="ArrowLeft"){ e.preventDefault(); goPrev(); }
+    else if (e.key==="r" || e.key==="R"){ e.preventDefault(); sayIt(); }
+    else if (e.key==="s" || e.key==="S"){ e.preventDefault(); $("#bdStar").click(); }
+    else if (e.key==="Escape"){ e.preventDefault(); exitDrill(); }
+  });
+})();
+</script>
+
 </body>
 </html>
