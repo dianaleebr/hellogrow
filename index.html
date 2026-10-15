@@ -1191,14 +1191,16 @@ input:focus,select:focus,textarea:focus,.fm-inp:focus{background:#fff!important;
     <div id="sub-class-grade" style="display:none">
       <div class="pg-hd">
         <div class="pg-title">성적관리</div>
+        <span id="grade-month-label" style="font-size:13px;font-weight:700;color:var(--ink3)"></span>
         <div class="pg-actions">
+          <select id="grade-month-sel" style="font-size:13px;padding:6px 10px;border:2px solid var(--line);font-family:inherit;background:#fafafa;cursor:pointer" onchange="onGradeMonthChange()"></select>
           <button class="btn bgh bsm" id="show-all-classes-btn" onclick="toggleShowAllClasses()">전체반 보기</button>
         </div>
       </div>
       <div class="dt-wrap">
         <table class="dt" id="grade-class-table">
           <thead><tr>
-            <th>반명</th><th>학습기간</th><th>강의명</th><th>담임</th><th>학생수</th>
+            <th>반명</th><th>학습기간</th><th>강의명</th><th>담임</th><th>학생수</th><th>입력 현황</th>
           </tr></thead>
           <tbody id="grade-class-tbody"></tbody>
         </table>
@@ -1742,7 +1744,7 @@ function wgRefreshMemory() {
   if(typeof students         !== 'undefined') students         = JSON.parse(localStorage.getItem('wg-students')||'[]');
   if(typeof lectures         !== 'undefined') lectures         = JSON.parse(localStorage.getItem('wg-lectures')||'[]');
   if(typeof openedClasses    !== 'undefined') openedClasses    = JSON.parse(localStorage.getItem('wg-openedclasses')||'[]');
-  if(typeof gradeData        !== 'undefined') gradeData        = JSON.parse(localStorage.getItem('wg-grades')||'{}');
+  if(typeof gradeData        !== 'undefined'){ gradeData = JSON.parse(localStorage.getItem('wg-grades')||'{}'); if(typeof migrateGradeData==='function') migrateGradeData(); }
   if(typeof attData          !== 'undefined') attData          = JSON.parse(localStorage.getItem('wg-att')||'{}');
   if(typeof bochuList        !== 'undefined') bochuList        = JSON.parse(localStorage.getItem('wg-bochu')||'{}');
   if(typeof bochuHistory     !== 'undefined') bochuHistory     = JSON.parse(localStorage.getItem('wg-bochu-done')||'{}');
@@ -3255,6 +3257,38 @@ let lectures=JSON.parse(localStorage.getItem('wg-lectures')||'[]');
 (function(){lectures.forEach(l=>{ if(!l.booklevel&&l.bookname){ const p=l.program||''; l.booklevel=l.bookname.replace(p,'').trim(); if(!l.booklevel){ const pts=l.bookname.split(' '); l.booklevel=pts[pts.length-1]||''; } } });})();
 let openedClasses=JSON.parse(localStorage.getItem('wg-openedclasses')||'[]');
 let gradeData=JSON.parse(localStorage.getItem('wg-grades')||'{}');
+/* ── 성적을 '월별'로 보관 ──
+   구조: gradeData[반ID][YYYY-MM][학생ID] = {점수들}
+   예전 구조(gradeData[반ID][학생ID])는 처음 열릴 때 현재 월로 옮겨집니다. */
+function gradeMonthNow(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+let gradeMonth = gradeMonthNow();
+const _isMonthKey = k => /^\d{4}-\d{2}$/.test(k);
+function migrateGradeData(){
+  let moved=0;
+  Object.keys(gradeData||{}).forEach(cid=>{
+    const bucket=gradeData[cid]; if(!bucket||typeof bucket!=='object') return;
+    const legacy=Object.keys(bucket).filter(k=>!_isMonthKey(k));
+    if(!legacy.length) return;
+    const m=gradeMonthNow();
+    if(!bucket[m]) bucket[m]={};
+    legacy.forEach(sid=>{ if(bucket[m][sid]===undefined) bucket[m][sid]=bucket[sid]; delete bucket[sid]; moved++; });
+  });
+  return moved;
+}
+/* 선택한 달의 반별 성적 묶음 (읽기 전용) */
+function gBucket(cid, month){ return ((gradeData[cid]||{})[month||gradeMonth])||{}; }
+/* 선택한 달의 반별 성적 묶음 (없으면 만들어서 반환) */
+function gBucketRW(cid, month){
+  const m=month||gradeMonth;
+  if(!gradeData[cid]) gradeData[cid]={};
+  if(!gradeData[cid][m]) gradeData[cid][m]={};
+  return gradeData[cid][m];
+}
+/* 그 달에 점수가 하나라도 입력된 학생 수 */
+function gradeFilledCount(cid, month){
+  const b=gBucket(cid, month);
+  return Object.values(b).filter(g=>g && Object.values(g).some(v=>v!==''&&v!==0&&v!=null)).length;
+}
 
 function saveStudents(){localStorage.setItem('wg-students',JSON.stringify(students));}
 function saveLectures(){localStorage.setItem('wg-lectures',JSON.stringify(lectures));}
@@ -3274,6 +3308,7 @@ function migrateLectures(){
 }
 function saveOpenedClasses(){localStorage.setItem('wg-openedclasses',JSON.stringify(openedClasses));}
 function saveGradeData(){localStorage.setItem('wg-grades',JSON.stringify(gradeData));}
+function _gradeRefresh(){ const cls=openedClasses.find(c=>c.id===currentGradeClassId); if(cls) renderGradeStudentTable(cls, currentGradeClassId); }
 
 /* 반 이름에서 시간(숫자시) 추출 → 2시,3시,4시,5시 순 정렬 */
 function sortedOpenedClasses(){
@@ -4024,16 +4059,37 @@ function toggleShowAllClasses(){
   renderGradeClassTable();
 }
 
+function buildGradeMonthSel(){
+  const sel=document.getElementById('grade-month-sel');
+  if(!sel) return;
+  if(!sel.dataset.built){
+    const now=new Date(); const opts=[];
+    for(let i=0;i<24;i++){ const d=new Date(now.getFullYear(), now.getMonth()-i, 1);
+      const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      opts.push(`<option value="${k}">${d.getFullYear()}년 ${d.getMonth()+1}월</option>`); }
+    sel.innerHTML=opts.join(''); sel.dataset.built='1';
+  }
+  sel.value=gradeMonth;
+  const lbl=document.getElementById('grade-month-label');
+  if(lbl){ const [y,m]=gradeMonth.split('-'); lbl.textContent=y+'년 '+parseInt(m)+'월 성적'; }
+}
+function onGradeMonthChange(){
+  const sel=document.getElementById('grade-month-sel');
+  gradeMonth = sel.value || gradeMonthNow();
+  renderGradeClassTable();
+}
 function renderGradeClassTable(){
   const tbody=document.getElementById('grade-class-tbody');
   if(!tbody)return;
+  migrateGradeData();
+  buildGradeMonthSel();
   // 최신 반 목록 반영
   openedClasses = JSON.parse(localStorage.getItem('wg-openedclasses')||'[]');
   const today=new Date().toISOString().slice(0,10);
   const base=sortedOpenedClasses();
   const list=showAllClasses?base:base.filter(c=>!c.endDate||c.endDate>=today);
   if(!list.length){
-    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--ink3)">진행중인 반이 없어요.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--ink3)">진행중인 반이 없어요.</td></tr>';
     return;
   }
   tbody.innerHTML=list.map(c=>`
@@ -4043,9 +4099,11 @@ function renderGradeClassTable(){
       <td>${c.lectureName||'-'}</td>
       <td>${c.teacher||'-'}</td>
       <td>${(c.students||[]).length}명</td>
+      <td>${(()=>{const n=gradeFilledCount(c.id);const tot=(c.students||[]).length;
+        return n?`<span style="color:#166534;font-weight:700">${n}/${tot}명</span>`:`<span style="color:var(--ink3)">미입력</span>`;})()}</td>
     </tr>
     <tr id="grade-expand-${c.id}" style="display:none">
-      <td colspan="5" style="padding:0;background:#fafafa;border-top:none">
+      <td colspan="6" style="padding:0;background:#fafafa;border-top:none">
         <div style="padding:16px 12px 20px">
           <table class="dt" style="font-size:12px">
             <thead><tr style="background:#f3f4f6">
@@ -4094,12 +4152,12 @@ function renderGradeStudentTable(cls, classId){
   const tbody = document.getElementById('grade-student-tbody-'+cid);
   if(!tbody) return;
   if(!cls.students||cls.students.length===0){
-    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--ink3)">이 반에 등록된 학생이 없어요.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--ink3)">이 반에 등록된 학생이 없어요.</td></tr>';
     return;
   }
   tbody.innerHTML=cls.students.map(sid=>{
     const stu=students.find(s=>s.id===sid)||{name:sid,ename:''};
-    const gd=(gradeData[cid]||{})[sid]||{};
+    const gd=gBucket(cid)[sid]||{};
     return`<tr>
       <td><b>${stu.name}</b>${stu.ename?`<br><span style="font-size:11px;color:var(--ink3)">${stu.ename}</span>`:''}</td>
       <td><input class="sc-inp-sm" type="number" min="0" max="10" value="${gd.speaking||''}" data-sid="${sid}" data-cid="${cid}" data-field="speaking"></td>
@@ -4126,9 +4184,8 @@ function collectRowScore(sid, cid){
 function saveOneScore(sid, cid){
   const classId = cid || currentGradeClassId;
   if(!classId)return;
-  if(!gradeData[classId])gradeData[classId]={};
-  const existing=gradeData[classId][sid]||{};
-  gradeData[classId][sid]={...existing,...collectRowScore(sid, classId)};
+  const bucket=gBucketRW(classId);
+  bucket[sid]={...(bucket[sid]||{}),...collectRowScore(sid, classId)};
   saveGradeData();toast('✅ 저장됐어요!');
 }
 
@@ -4137,13 +4194,10 @@ function saveAllScores(cid){
   if(!classId){ toast('반을 선택해 주세요'); return; }
   currentGradeClassId = classId;
   if(!currentGradeClassId)return;
-  if(!gradeData[currentGradeClassId])gradeData[currentGradeClassId]={};
   const cls=openedClasses.find(c=>c.id===currentGradeClassId);
   if(!cls)return;
-  cls.students.forEach(sid=>{
-    const existing=gradeData[currentGradeClassId][sid]||{};
-    gradeData[currentGradeClassId][sid]={...existing,...collectRowScore(sid)};
-  });
+  const bucket=gBucketRW(currentGradeClassId);
+  cls.students.forEach(sid=>{ bucket[sid]={...(bucket[sid]||{}),...collectRowScore(sid)}; });
   saveGradeData();toast('✅ 전체 저장됐어요!');
 }
 
@@ -4152,8 +4206,9 @@ let currentManageSid=null;
 function openManageModal(sid){
   currentManageSid=sid;
   const stu=students.find(s=>s.id===sid);
-  document.getElementById('modal-manage-title').textContent=(stu?.name||sid)+' — 관리';
-  const gd=(gradeData[currentGradeClassId]||{})[sid]||{};
+  const _gm=gradeMonth.split('-');
+  document.getElementById('modal-manage-title').textContent=(stu?.name||sid)+' — 관리 ('+_gm[0]+'년 '+parseInt(_gm[1])+'월)';
+  const gd=gBucket(currentGradeClassId)[sid]||{};
   document.getElementById('mg-attendance').value=gd.attendance||'';
   document.getElementById('mg-wordtest').value=gd.wordtest||'';
   document.getElementById('mg-homework').value=gd.homework||'';
@@ -4182,10 +4237,9 @@ function updateManageTotal(){
 }
 function saveManage(){
   if(!currentGradeClassId||!currentManageSid)return;
-  if(!gradeData[currentGradeClassId])gradeData[currentGradeClassId]={};
   const v=id=>parseInt(document.getElementById(id)?.value)||0;
-  const existing=gradeData[currentGradeClassId][currentManageSid]||{};
-  gradeData[currentGradeClassId][currentManageSid]={...existing,
+  const bucket=gBucketRW(currentGradeClassId);
+  bucket[currentManageSid]={...(bucket[currentManageSid]||{}),
     attendance:v('mg-attendance'),wordtest:v('mg-wordtest'),homework:v('mg-homework'),
     mid_l:v('mg-mid-l'),mid_r:v('mg-mid-r'),mid_w:v('mg-mid-w'),mid_g:v('mg-mid-g'),
     fin_l:v('mg-fin-l'),fin_r:v('mg-fin-r'),fin_w:v('mg-fin-w'),fin_g:v('mg-fin-g'),
@@ -4244,14 +4298,14 @@ function openReportModal(sid){
   _printSid = sid;  // 현재 보는 학생 저장
   const stu=students.find(s=>s.id===sid);
   const cls=openedClasses.find(c=>c.id===currentGradeClassId);
-  const gd=(gradeData[currentGradeClassId]||{})[sid]||{};
+  const gd=gBucket(currentGradeClassId)[sid]||{};
   const lec=lectures.find(l=>l.id===cls?.lectureId);
   const v=f=>gd[f]||0;
   const mid=v('mid_l')+v('mid_r')+v('mid_w')+v('mid_g');
   const fin=v('fin_l')+v('fin_r')+v('fin_w')+v('fin_g');
   const total=v('attendance')+v('wordtest')+v('homework')+mid+fin;
   const allSids=cls?.students||[];
-  const classTotal=allSids.map(s=>{const g=(gradeData[currentGradeClassId]||{})[s]||{};const mv=['mid_l','mid_r','mid_w','mid_g'].reduce((a,f)=>a+(g[f]||0),0);const fv=['fin_l','fin_r','fin_w','fin_g'].reduce((a,f)=>a+(g[f]||0),0);return(g.attendance||0)+(g.wordtest||0)+(g.homework||0)+mv+fv;});
+  const classTotal=allSids.map(s=>{const g=gBucket(currentGradeClassId)[s]||{};const mv=['mid_l','mid_r','mid_w','mid_g'].reduce((a,f)=>a+(g[f]||0),0);const fv=['fin_l','fin_r','fin_w','fin_g'].reduce((a,f)=>a+(g[f]||0),0);return(g.attendance||0)+(g.wordtest||0)+(g.homework||0)+mv+fv;});
   const classAvg=classTotal.length?Math.round(classTotal.reduce((a,b)=>a+b,0)/classTotal.length):0;
   const myPct=Math.round(total/100*100);
   const avgPct=Math.round(classAvg/100*100);
@@ -4318,14 +4372,14 @@ function printReport(){
   if(!sid){ toast('성적표를 먼저 열어주세요'); return; }
   const stu=students.find(s=>s.id===sid);
   const cls=openedClasses.find(c=>c.id===currentGradeClassId);
-  const gd=(gradeData[currentGradeClassId]||{})[sid]||{};
+  const gd=gBucket(currentGradeClassId)[sid]||{};
   const lec=lectures.find(l=>l.id===cls?.lectureId);
   const v=f=>gd[f]||0;
   const mid=v('mid_l')+v('mid_r')+v('mid_w')+v('mid_g');
   const fin=v('fin_l')+v('fin_r')+v('fin_w')+v('fin_g');
   const total=v('attendance')+v('wordtest')+v('homework')+mid+fin;
   const allSids=cls?.students||[];
-  const classTotal=allSids.map(s=>{const g=(gradeData[currentGradeClassId]||{})[s]||{};const mv=['mid_l','mid_r','mid_w','mid_g'].reduce((a,f)=>a+(g[f]||0),0);const fv=['fin_l','fin_r','fin_w','fin_g'].reduce((a,f)=>a+(g[f]||0),0);return(g.attendance||0)+(g.wordtest||0)+(g.homework||0)+mv+fv;});
+  const classTotal=allSids.map(s=>{const g=gBucket(currentGradeClassId)[s]||{};const mv=['mid_l','mid_r','mid_w','mid_g'].reduce((a,f)=>a+(g[f]||0),0);const fv=['fin_l','fin_r','fin_w','fin_g'].reduce((a,f)=>a+(g[f]||0),0);return(g.attendance||0)+(g.wordtest||0)+(g.homework||0)+mv+fv;});
   const classAvg=classTotal.length?Math.round(classTotal.reduce((a,b)=>a+b,0)/classTotal.length):0;
   const myPct=Math.min(100,Math.round(total));
   const avgPct=Math.min(100,Math.round(classAvg));
@@ -4407,6 +4461,7 @@ function printReport(){
   <div class="no-break" style="background:#fffbeb;border-bottom:2px solid #d97706;padding:10px 24px;display:flex;justify-content:space-between;align-items:center">
     <div style="font-size:12px;color:#78350f">
       <span style="font-weight:700">학습기간</span> &nbsp;${cls?.startDate||'?'} ~ ${cls?.endDate||'?'}
+      &nbsp;·&nbsp; <span style="font-weight:700">평가월</span> &nbsp;${(()=>{const g=gradeMonth.split('-');return g[0]+'년 '+parseInt(g[1])+'월';})()}
     </div>
     ${lec?`<div style="font-size:12px;color:#78350f"><span style="font-weight:700">교재</span> &nbsp;${(lec.bookname||'').replace('Theme Bridge ','')}</div>`:''}
   </div>
