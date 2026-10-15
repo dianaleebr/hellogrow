@@ -475,6 +475,7 @@ kbd{
 .bd-blank{color:#E8000D;font-weight:900;border-bottom:4px solid #fbbf24;padding:0 2px}
 .bd-slash{color:#1C5FA6;font-weight:900;padding:0 4px}
 .bd-word{font-size:clamp(34px,9vw,64px);font-weight:800;letter-spacing:-.5px}
+#bdAnswerSlot .a-text{color:#B45309;border-left:5px solid #fbbf24;padding-left:14px;margin-top:4px}
 .bd-note{margin:14px 0 0;padding:10px 14px;border-left:4px solid #6b7280;background:rgba(107,114,128,.08);border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.6;text-align:left;opacity:.9}
 @media (max-width:720px){ .mode-row{grid-template-columns:1fr} .bk-grid{grid-template-columns:repeat(2,1fr)} .bk-lessons{grid-template-columns:1fr} }
 </style>
@@ -653,6 +654,13 @@ kbd{
     <div class="section" id="bkPartSec" hidden>
       <h2><span class="step">3</span> 무엇을 연습할까요?</h2>
       <div class="opt-row" id="bkPartRow" role="radiogroup" aria-label="연습 범위"></div>
+
+      <h2 style="margin:22px 0 12px"><span class="step">4</span> 드릴 방향</h2>
+      <div class="opt-row" id="bkDirRow" role="radiogroup" aria-label="드릴 방향">
+        <button class="chip" data-dir="ko2en" aria-checked="true" role="radio">한 → 영 <span class="en">한글 보고 영어로 말하기</span></button>
+        <button class="chip" data-dir="en2ko" aria-checked="false" role="radio">영 → 한 <span class="en">영어 보고 우리말로</span></button>
+      </div>
+      <p class="hint" style="margin-top:10px">파닉스 단어는 소리 연습이라 한 → 영 에서도 영어가 그대로 나옵니다.</p>
       <div id="bkNote"></div>
       <div style="margin-top:20px"><button class="btn btn-gold btn-lg" id="bkStart">▶ 시작하기</button></div>
     </div>
@@ -677,15 +685,24 @@ kbd{
     <div class="q-card">
       <p class="q-label" id="bdLabel"></p>
       <p class="q-text" id="bdText" aria-live="polite"></p>
+
+      <div class="answer-slot" id="bdAnswerSlot" aria-live="polite">
+        <div class="a-hidden-note" id="bdHiddenNote">
+          <span aria-hidden="true">🔒</span>
+          <span>정답은 숨겨져 있어요 — <b>정답 공개</b> 또는 <kbd>Enter</kbd></span>
+        </div>
+      </div>
+
       <div class="bd-hint" id="bdHint" hidden></div>
       <div class="bd-note" id="bdNote" hidden></div>
     </div>
     <div class="controls">
-      <button class="btn btn-primary speak-btn" id="bdSpeak" aria-label="문장 듣기 (단축키 R)">
+      <button class="btn btn-primary speak-btn" id="bdSpeak" aria-label="영어 문장 듣기 (단축키 R)">
         <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span> 듣기
       </button>
+      <button class="btn btn-gold grow" id="bdReveal" aria-label="정답 공개 (Enter)">👀 정답 공개</button>
       <button class="btn btn-ghost" id="bdPrev" aria-label="이전 (왼쪽 화살표)">← 이전</button>
-      <button class="btn btn-ghost grow" id="bdNext" aria-label="다음 (스페이스 또는 오른쪽 화살표)">다음 →</button>
+      <button class="btn btn-ghost" id="bdNext" aria-label="다음 (스페이스 또는 오른쪽 화살표)">다음 →</button>
     </div>
   </div>
 </section>
@@ -2061,7 +2078,7 @@ window.__drill = { screens, show, speak, stopSpeak, state, TTS, $, $$ };
   screens.book = $("#screen-book");
   screens.bookdrill = $("#screen-bookdrill");
 
-  const bk = { bookId:null, lessonNo:null, part:"all", items:[], idx:0, starred:new Set() };
+  const bk = { bookId:null, lessonNo:null, part:"all", dir:"ko2en", items:[], idx:0, revealed:false, starred:new Set() };
 
   /* ---------- 진도 저장 (반별) ---------- */
   function progKey(){ return state.classId || "_"; }
@@ -2137,6 +2154,16 @@ window.__drill = { screens, show, speak, stopSpeak, state, TTS, $, $$ };
         $$("#bkPartRow .chip").forEach(x=> x.setAttribute("aria-checked", x===el ? "true":"false"));
       });
     });
+    $$("#bkDirRow .chip").forEach(el=>{
+      el.setAttribute("aria-checked", el.dataset.dir===bk.dir ? "true":"false");
+      if (!el.dataset.bound){
+        el.dataset.bound = "1";
+        el.addEventListener("click", ()=>{
+          bk.dir = el.dataset.dir;
+          $$("#bkDirRow .chip").forEach(x=> x.setAttribute("aria-checked", x===el ? "true":"false"));
+        });
+      }
+    });
     const notes = [];
     if (l.notes && l.notes.length) notes.push("<b>문법 메모</b><br>" + l.notes.map(esc).join(" · "));
     if (l.note) notes.push("<b>교사 안내</b><br>" + esc(l.note));
@@ -2162,25 +2189,40 @@ window.__drill = { screens, show, speak, stopSpeak, state, TTS, $, $$ };
     const l = curLesson(); if(!l) return [];
     const out = [];
     if (bk.part !== "words") l.cards.forEach(c=> out.push(Object.assign({type:"card"}, c)));
-    if (bk.part !== "cards") l.words.forEach(w=> out.push({type:"word", t:w.w, g:w.g, k:"word"}));
+    if (bk.part !== "cards") l.words.forEach(w=> out.push({type:"word", t:w.w, ko:w.ko, g:w.g, k:"word"}));
     return out;
   }
 
   function startBookDrill(){
     bk.items = buildItems();
     if (!bk.items.length){ alert("이 레슨에는 연습할 내용이 없어요."); return; }
-    bk.idx = 0; bk.starred = new Set();
+    bk.idx = 0; bk.revealed = false; bk.starred = new Set();
     const b = D.books.find(x=>x.id===bk.bookId); const l = curLesson();
     $("#bdBook").textContent = b.label + " · L" + l.no;
     show("bookdrill");
     paintCard();
   }
 
-  function renderText(it){
-    let t = esc(it.t);
-    if (it.b) t = t.replace(/___/g, '<span class="bd-blank">______</span>');
-    if (it.c) t = t.replace(/ \/ /g, ' <span class="bd-slash">/</span> ');
+  function renderText(text, it){
+    let t = esc(text == null ? "" : text);
+    t = t.replace(/___/g, '<span class="bd-blank">______</span>');
+    t = t.replace(/ \/ /g, ' <span class="bd-slash">/</span> ');
     return t;
+  }
+
+  /* 파닉스 단어는 소리 연습이라 언제나 영어를 보여 줍니다 */
+  function alwaysEnglish(it){ return it.type==="word" && it.g==="phonics"; }
+
+  function sideText(it, which){
+    /* which: "q" 문제 / "a" 정답 */
+    const en = it.t, ko = it.ko || "";
+    if (alwaysEnglish(it)) return which==="q" ? en : ko;
+    if (bk.dir === "ko2en") return which==="q" ? (ko || en) : en;
+    return which==="q" ? en : (ko || "");
+  }
+  function sideIsEnglish(it, which){
+    if (alwaysEnglish(it)) return which==="q";
+    return bk.dir === "ko2en" ? which==="a" : which==="q";
   }
 
   function paintCard(){
@@ -2189,24 +2231,36 @@ window.__drill = { screens, show, speak, stopSpeak, state, TTS, $, $$ };
     $("#bdKind").textContent = it.type==="word" ? (GROUP_LABEL[it.g]||"Word") : (it.q ? "질문" : "문장");
     $("#bdCounter").textContent = (bk.idx+1) + " / " + bk.items.length;
     $("#bdLabel").textContent = KIND_LABEL[it.k] || "";
+
+    const qTxt = sideText(it,"q"), qEn = sideIsEnglish(it,"q");
     const txt = $("#bdText");
-    if (it.type==="word"){
-      txt.className = "q-text bd-word";
-      txt.textContent = it.t;
+    txt.className = "q-text" + (it.type==="word" ? " bd-word" : "") + (qEn ? " en" : "");
+    txt.innerHTML = renderText(qTxt, it);
+
+    const slot = $("#bdAnswerSlot");
+    if (bk.revealed){
+      const aEn = sideIsEnglish(it,"a");
+      slot.innerHTML = '<p class="a-text'+(aEn?" en":"")+'">' + renderText(sideText(it,"a"), it) + '</p>';
     } else {
-      txt.className = "q-text";
-      txt.innerHTML = renderText(it);
+      slot.innerHTML = '<div class="a-hidden-note"><span aria-hidden="true">🔒</span> <span>정답은 숨겨져 있어요 — <b>정답 공개</b> 또는 <kbd>Enter</kbd></span></div>';
     }
+    $("#bdReveal").disabled = bk.revealed;
+    $("#bdReveal").textContent = bk.revealed ? "✓ 공개됨" : "👀 정답 공개";
+    /* 한 → 영 에서는 정답을 보기 전에 영어 음원을 들려주지 않습니다 */
+    $("#bdSpeak").disabled = (bk.dir==="ko2en" && !bk.revealed && !alwaysEnglish(it));
+
     const hints = [];
     if (it.b) hints.push("빈칸은 학생이 <b>자기 이야기로</b> 채워 말합니다.");
     if (it.c) hints.push("슬래시(/)로 나뉜 말 중 <b>하나를 골라</b> 말합니다.");
     const h = $("#bdHint");
     h.hidden = !hints.length; h.innerHTML = hints.join("<br>");
+
     const n = $("#bdNote");
     const notes = [];
     if (l.notes && l.notes.length && it.type!=="word") notes.push(l.notes.map(esc).join(" · "));
     if (l.note && it.s && /^writing/.test(it.s)) notes.push(esc(l.note));
     n.hidden = !notes.length; n.innerHTML = notes.join("<br>");
+
     $("#bdStar").textContent = bk.starred.has(bk.idx) ? "★" : "☆";
     $("#bdStar").setAttribute("aria-pressed", bk.starred.has(bk.idx) ? "true":"false");
     const pct = Math.round((bk.idx+1)/bk.items.length*100);
@@ -2216,14 +2270,16 @@ window.__drill = { screens, show, speak, stopSpeak, state, TTS, $, $$ };
     $("#bdNext").textContent = bk.idx===bk.items.length-1 ? "완료 ✓" : "다음 →";
   }
 
+  function reveal(){ if(!bk.revealed){ bk.revealed = true; paintCard(); } }
+
   function goNext(){
-    if (bk.idx < bk.items.length-1){ bk.idx++; paintCard(); }
+    if (bk.idx < bk.items.length-1){ bk.idx++; bk.revealed = false; paintCard(); }
     else { markDone(bk.bookId, bk.lessonNo); exitDrill(); }
   }
-  function goPrev(){ if (bk.idx>0){ bk.idx--; paintCard(); } }
+  function goPrev(){ if (bk.idx>0){ bk.idx--; bk.revealed = false; paintCard(); } }
   function sayIt(){
     const it = bk.items[bk.idx]; if(!it) return;
-    speak(it.t.replace(/___/g," blank "), TTS.langEn, $("#bdSpeak"));
+    speak(it.t.replace(/___/g," blank "), TTS.langEn, $("#bdSpeak"));  /* 음원은 항상 영어 원문 */
   }
   function exitDrill(){
     stopSpeak();
@@ -2240,6 +2296,7 @@ window.__drill = { screens, show, speak, stopSpeak, state, TTS, $, $$ };
   $("#bkBack").addEventListener("click", ()=> show("start"));
   $("#bkStart").addEventListener("click", startBookDrill);
   $("#bdNext").addEventListener("click", goNext);
+  $("#bdReveal").addEventListener("click", reveal);
   $("#bdPrev").addEventListener("click", goPrev);
   $("#bdSpeak").addEventListener("click", sayIt);
   $("#bdExit").addEventListener("click", exitDrill);
@@ -2250,7 +2307,7 @@ window.__drill = { screens, show, speak, stopSpeak, state, TTS, $, $$ };
   $("#bdCounter").addEventListener("click", ()=>{
     const v = prompt("몇 번으로 갈까요? (1 ~ " + bk.items.length + ")", String(bk.idx+1));
     const n = parseInt(v,10);
-    if (n>=1 && n<=bk.items.length){ bk.idx = n-1; paintCard(); }
+    if (n>=1 && n<=bk.items.length){ bk.idx = n-1; bk.revealed = false; paintCard(); }
   });
 
   document.addEventListener("keydown", (e)=>{
@@ -2259,7 +2316,8 @@ window.__drill = { screens, show, speak, stopSpeak, state, TTS, $, $$ };
     if (tag==="INPUT" || tag==="TEXTAREA") return;
     if (e.key==="ArrowRight" || e.key===" "){ e.preventDefault(); goNext(); }
     else if (e.key==="ArrowLeft"){ e.preventDefault(); goPrev(); }
-    else if (e.key==="r" || e.key==="R"){ e.preventDefault(); sayIt(); }
+    else if (e.key==="Enter"){ e.preventDefault(); reveal(); }
+    else if (e.key==="r" || e.key==="R"){ e.preventDefault(); if(!$("#bdSpeak").disabled) sayIt(); }
     else if (e.key==="s" || e.key==="S"){ e.preventDefault(); $("#bdStar").click(); }
     else if (e.key==="Escape"){ e.preventDefault(); exitDrill(); }
   });
